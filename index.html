@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Absensi N4 Rasen – Portal</title>
+  <style>
+    html,body{height:100%;margin:0}
+    #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
+    .toolbar{position:fixed;right:12px;top:12px;z-index:999999;background:#ffffffee;border:1px solid #dbe0e6;border-radius:14px;padding:10px 12px;box-shadow:0 6px 30px rgba(0,0,0,.12);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .toolbar input{height:32px;padding:0 10px;border:1px solid #cbd5e1;border-radius:10px}
+    .toolbar button{height:32px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;padding:0 10px}
+    .toolbar button:hover{background:#f3f5f7}
+    .tag{font-size:12px;color:#64748b;padding:0 6px}
+    @media (max-width:680px){.toolbar{left:12px;right:12px}}
+  </style>
+</head>
+<body>
+  <!-- NOTE: this wrapper expects your original app file renamed to app.html -->
+  <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
+
+  <div class="toolbar">
+    <span class="tag">Cloud/Local</span>
+    <button id="btnSaveLocal">Simpan ke Perangkat</button>
+    <button id="btnLoadLocal">Muat dari Perangkat</button>
+    <span class="tag">Gist</span>
+    <input id="gistToken" placeholder="GitHub Token (PAT)" style="width:230px" />
+    <input id="gistId" placeholder="Gist ID (optional)" style="width:180px" />
+    <button id="btnBackupGist">Backup ke Gist</button>
+    <button id="btnRestoreGist">Pulihkan dari Gist</button>
+  </div>
+
+  <script>
+  function cw(){ const f=document.getElementById('appframe'); return f && f.contentWindow; }
+  function ensureReady(){
+    const c = cw();
+    if(!c) throw new Error('Iframe belum siap.');
+    if(typeof c.collectAllData!=='function' || typeof c.applyAllData!=='function'){
+      throw new Error('Fungsi collectAllData/applyAllData belum siap di app.');
+    }
+    return c;
+  }
+  const LS_KEY='absensi_n4_rasen_snapshot_v1';
+  document.getElementById('btnSaveLocal').onclick = () => {
+    try{ const c=ensureReady(); localStorage.setItem(LS_KEY, JSON.stringify(c.collectAllData())); alert('Tersimpan di perangkat ✅'); }catch(e){ alert(e.message||e); }
+  };
+  document.getElementById('btnLoadLocal').onclick = () => {
+    try{ const t=localStorage.getItem(LS_KEY); if(!t) return alert('Belum ada data lokal.'); const c=ensureReady(); c.applyAllData(JSON.parse(t)); alert('Data dimuat dari perangkat ✅'); }catch(e){ alert(e.message||e); }
+  };
+  window.addEventListener('beforeunload', () => { try{ const c=cw(); if(c&&c.collectAllData){ localStorage.setItem(LS_KEY, JSON.stringify(c.collectAllData())); } }catch(_){}});
+
+  const LS_TOKEN='absensi_n4_rasen_gist_token', LS_GIST='absensi_n4_rasen_gist_id';
+  const tokenInput=document.getElementById('gistToken'); const gistInput=document.getElementById('gistId');
+  tokenInput.value=localStorage.getItem(LS_TOKEN)||''; gistInput.value=localStorage.getItem(LS_GIST)||'';
+  tokenInput.addEventListener('change', ()=> localStorage.setItem(LS_TOKEN, tokenInput.value.trim()));
+  gistInput.addEventListener('change',  ()=> localStorage.setItem(LS_GIST,  gistInput.value.trim()));
+
+  async function ghFetch(path, opts={}){
+    const token=(tokenInput.value||'').trim(); if(!token) throw new Error('Isi GitHub Token dulu.');
+    const headers=Object.assign({'Accept':'application/vnd.github+json','Authorization':'Bearer '+token}, opts.headers||{});
+    const res=await fetch('https://api.github.com'+path, { ...opts, headers });
+    if(!res.ok){ const t=await res.text(); throw new Error('GitHub API: '+res.status+' '+t); }
+    return res.json();
+  }
+  document.getElementById('btnBackupGist').onclick = async () => {
+    try{
+      const c=ensureReady(); const content=JSON.stringify(c.collectAllData(), null, 2);
+      const id=(gistInput.value||'').trim(); const file='absensi-n4-rasen.json';
+      if(!id){
+        const body={ description:'Backup Absensi N4 Rasen', public:false, files:{ [file]:{ content } } };
+        const out=await ghFetch('/gists',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+        gistInput.value=out.id; localStorage.setItem(LS_GIST,out.id); alert('Backup dibuat ✅\nGist ID: '+out.id);
+      } else {
+        const body={ files:{ [file]:{ content } } };
+        await ghFetch('/gists/'+id,{ method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+        alert('Backup diperbarui ✅');
+      }
+    }catch(e){ alert('Gagal backup: '+(e.message||e)); }
+  };
+  document.getElementById('btnRestoreGist').onclick = async () => {
+    try{
+      const id=(gistInput.value||'').trim(); if(!id) return alert('Isi Gist ID dahulu (atau lakukan Backup sekali).');
+      const out=await ghFetch('/gists/'+id);
+      const file=Object.values(out.files).find(f=>/\.json$/i.test(f.filename));
+      if(!file) throw new Error('File JSON tidak ditemukan di Gist.');
+      const resp=await fetch(file.raw_url); const data=await resp.json();
+      const c=ensureReady(); c.applyAllData(data); alert('Pulihkan dari Gist ✅');
+    }catch(e){ alert('Gagal pulihkan: '+(e.message||e)); }
+  };
+  </script>
+</body>
+</html>
