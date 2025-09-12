@@ -16,18 +16,26 @@
   </style>
 </head>
 <body>
-  <!-- NOTE: this wrapper expects your original app file renamed to app.html -->
+  <!-- NOTE: app.html adalah file absensi lama -->
   <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
 
   <div class="toolbar">
-    <span class="tag">Cloud/Local</span>
+    <span class="tag">Local</span>
     <button id="btnSaveLocal">Simpan ke Perangkat</button>
     <button id="btnLoadLocal">Muat dari Perangkat</button>
+
     <span class="tag">Gist</span>
     <input id="gistToken" placeholder="GitHub Token (PAT)" style="width:230px" />
     <input id="gistId" placeholder="Gist ID (optional)" style="width:180px" />
     <button id="btnBackupGist">Backup ke Gist</button>
     <button id="btnRestoreGist">Pulihkan dari Gist</button>
+
+    <span class="tag">Firebase</span>
+    <input id="classKey" placeholder="Kelas Key (opsional)" style="width:180px" />
+    <button id="fbLogin">Masuk Google</button>
+    <button id="fbLogout" style="display:none;">Keluar</button>
+    <button id="fbSave">Simpan ke Cloud</button>
+    <button id="fbLoad">Muat dari Cloud</button>
   </div>
 
   <script>
@@ -40,6 +48,8 @@
     }
     return c;
   }
+
+  // ====== Local Storage ======
   const LS_KEY='absensi_n4_rasen_snapshot_v1';
   document.getElementById('btnSaveLocal').onclick = () => {
     try{ const c=ensureReady(); localStorage.setItem(LS_KEY, JSON.stringify(c.collectAllData())); alert('Tersimpan di perangkat ✅'); }catch(e){ alert(e.message||e); }
@@ -49,6 +59,7 @@
   };
   window.addEventListener('beforeunload', () => { try{ const c=cw(); if(c&&c.collectAllData){ localStorage.setItem(LS_KEY, JSON.stringify(c.collectAllData())); } }catch(_){}});
 
+  // ====== GitHub Gist ======
   const LS_TOKEN='absensi_n4_rasen_gist_token', LS_GIST='absensi_n4_rasen_gist_id';
   const tokenInput=document.getElementById('gistToken'); const gistInput=document.getElementById('gistId');
   tokenInput.value=localStorage.getItem(LS_TOKEN)||''; gistInput.value=localStorage.getItem(LS_GIST)||'';
@@ -87,6 +98,84 @@
       const c=ensureReady(); c.applyAllData(data); alert('Pulihkan dari Gist ✅');
     }catch(e){ alert('Gagal pulihkan: '+(e.message||e)); }
   };
+  </script>
+
+  <!-- ====== Firebase SDK ====== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    // GANTI dengan config project kamu
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "YOUR_PROJECT_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getDatabase(app);
+
+    const appframe = document.getElementById('appframe');
+    const appWin = () => appframe && appframe.contentWindow;
+    const needApp = () => {
+      const w = appWin();
+      if (!w || typeof w.collectAllData !== 'function' || typeof w.applyAllData !== 'function') {
+        throw new Error('App belum siap di iframe.');
+      }
+      return w;
+    };
+
+    function getPath(uid) {
+      const key = (document.getElementById('classKey').value || '').trim();
+      if (key) return `classes/${encodeURIComponent(key)}`;
+      if (uid) return `users/${uid}/absensi`;
+      throw new Error('Isi Kelas Key atau login Google dulu.');
+    }
+
+    const btnLogin  = document.getElementById('fbLogin');
+    const btnLogout = document.getElementById('fbLogout');
+    const btnSave   = document.getElementById('fbSave');
+    const btnLoad   = document.getElementById('fbLoad');
+
+    btnLogin.onclick  = async () => { await signInWithPopup(auth, new GoogleAuthProvider()); };
+    btnLogout.onclick = async () => { await signOut(auth); };
+
+    onAuthStateChanged(auth, (user) => {
+      btnLogin.style.display  = user ? 'none' : '';
+      btnLogout.style.display = user ? '' : 'none';
+      btnLogout.textContent   = user ? `Keluar (${user.email||user.displayName||'akun'})` : 'Keluar';
+    });
+
+    btnSave.onclick = async () => {
+      try {
+        const w   = needApp();
+        const data = w.collectAllData();
+        const uid  = auth.currentUser && auth.currentUser.uid;
+        const path = getPath(uid);
+        await set(ref(db, path), data);
+        alert('✅ Tersimpan ke Firebase: ' + path);
+      } catch (e) {
+        alert('Gagal simpan: ' + e.message);
+      }
+    };
+
+    btnLoad.onclick = async () => {
+      try {
+        const uid  = auth.currentUser && auth.currentUser.uid;
+        const path = getPath(uid);
+        const snap = await get(child(ref(db), path));
+        if (!snap.exists()) return alert('Belum ada data di: ' + path);
+        const w = needApp();
+        w.applyAllData(snap.val());
+        alert('✅ Dimuat dari Firebase: ' + path);
+      } catch (e) {
+        alert('Gagal muat: ' + e.message);
+      }
+    };
   </script>
 </body>
 </html>
