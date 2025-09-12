@@ -770,51 +770,24 @@ document.getElementById('btnSyncSheets').addEventListener('click', async () => {
 
 </script>
 
-<!-- Hidden iframe to avoid opening a new tab on form submit -->
-<iframe name="hidden_sink" style="display:none;"></iframe>
-<form id="gsForm" action="" method="POST" target="hidden_sink" style="display:none;">
-  <input type="hidden" name="payload" id="gsPayload" value="" />
-</form>
 <script>
-// === Form POST (no CORS) fallback ===
-function postViaForm() {
-  try{
-    const form = document.getElementById('gsForm');
-    const input = document.getElementById('gsPayload');
-    const data = collectAllData();
-    input.value = encodeURIComponent(JSON.stringify(data));
-    form.action = WEB_APP_URL;
-    form.submit();
-    alert('Data dikirim via FORM. Cek Google Sheets.');
-  }catch(err){
-    console.error(err);
-    alert('Gagal mengirim via FORM: ' + (err && err.message ? err.message : err));
-  }
-}
+const LS_KEY = 'absensi_n4_rasen_snapshot_v1';
+function saveLocal(){try{const d=collectAllData();localStorage.setItem(LS_KEY,JSON.stringify(d));alert('Tersimpan di perangkat ✅');}catch(e){console.error(e);alert('Gagal simpan di perangkat.');}}
+function loadLocal(){try{const t=localStorage.getItem(LS_KEY);if(!t)return alert('Belum ada data lokal.');const d=JSON.parse(t);applyAllData(d);alert('Data dimuat dari perangkat ✅');}catch(e){console.error(e);alert('Gagal muat dari perangkat.');}}
+document.getElementById('btnSaveLocal').onclick=saveLocal;
+document.getElementById('btnLoadLocal').onclick=loadLocal;
+window.addEventListener('beforeunload',()=>{try{const d=collectAllData();localStorage.setItem(LS_KEY,JSON.stringify(d));}catch(_){}});
 
-// Rewire button to try fetch first; if gagal, pakai form
-(function(){
-  const btn = document.getElementById('btnSyncSheets');
-  if(!btn) return;
-  const oldHandler = btn.onclick || null;
-  btn.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    try{
-      const payload = collectAllData();
-      const res = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: {'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify(payload)
-      });
-      let out = {};
-      try { out = await res.json(); } catch(_){}
-      alert('Sync sukses! Baris terkirim: ' + (out.rows || 0));
-    }catch(e){
-      console.warn('fetch gagal, kirim via FORM...', e);
-      postViaForm();
-    }
-  }, {capture: true});
-})();
+const LS_TOKEN='absensi_n4_rasen_gist_token',LS_GIST='absensi_n4_rasen_gist_id';
+const tokenInput=document.getElementById('gistToken');const gistInput=document.getElementById('gistId');
+if(tokenInput)tokenInput.value=localStorage.getItem(LS_TOKEN)||'';if(gistInput)gistInput.value=localStorage.getItem(LS_GIST)||'';
+tokenInput&&tokenInput.addEventListener('change',()=>localStorage.setItem(LS_TOKEN,tokenInput.value.trim()));
+gistInput&&gistInput.addEventListener('change',()=>localStorage.setItem(LS_GIST,gistInput.value.trim()));
+async function ghFetch(path,opts={}){const token=(tokenInput&&tokenInput.value||'').trim();if(!token)throw new Error('Isi GitHub Token dulu.');const headers=Object.assign({'Accept':'application/vnd.github+json','Authorization':'Bearer '+token},opts.headers||{});const res=await fetch('https://api.github.com'+path,{...opts,headers});if(!res.ok){const t=await res.text();throw new Error('GitHub API error: '+res.status+' '+t);}return res.json();}
+async function backupToGist(){try{const d=collectAllData();const content=JSON.stringify(d,null,2);const id=(gistInput&&gistInput.value||'').trim();const file='absensi-n4-rasen.json';if(!id){const body={description:'Backup Absensi N4 Rasen',public:false,files:{[file]:{content}}};const out=await ghFetch('/gists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});gistInput.value=out.id;localStorage.setItem(LS_GIST,out.id);alert('Backup dibuat ✅\nGist ID: '+out.id);}else{const body={files:{[file]:{content}}};await ghFetch('/gists/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});alert('Backup diperbarui ✅');}}catch(e){console.error(e);alert('Gagal backup ke Gist.\n'+e.message);}}
+async function restoreFromGist(){try{const id=(gistInput&&gistInput.value||'').trim();if(!id)return alert('Isi Gist ID dahulu (atau lakukan Backup sekali).');const out=await ghFetch('/gists/'+id);const file=Object.values(out.files).find(f=>/\.json$/i.test(f.filename));if(!file)throw new Error('File JSON tidak ditemukan di Gist.');const resp=await fetch(file.raw_url);const data=await resp.json();applyAllData(data);alert('Pulihkan dari Gist ✅');}catch(e){console.error(e);alert('Gagal pulihkan dari Gist.\n'+e.message);}}
+document.getElementById('btnBackupGist').onclick=backupToGist;
+document.getElementById('btnRestoreGist').onclick=restoreFromGist;
 </script>
 
 </body>
