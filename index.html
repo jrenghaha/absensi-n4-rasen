@@ -100,19 +100,22 @@
   };
   </script>
 
-  <!-- ====== Firebase SDK ====== -->
+  <!-- ====== Firebase (Realtime DB + optional Google Auth) ====== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-    // GANTI dengan config project kamu
+    // === CONFIG dari Firebase milikmu ===
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "YOUR_PROJECT_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyBcyFx4dMA2-YfC3SjeQPnDQ1_Rs1a5UsY",
+      authDomain: "absensi-n4-rasen.firebaseapp.com",
+      databaseURL: "https://absensi-n4-rasen-default-rtdb.firebaseio.com",
+      projectId: "absensi-n4-rasen",
+      storageBucket: "absensi-n4-rasen.firebasestorage.app",
+      messagingSenderId: "378590645751",
+      appId: "1:378590645751:web:05f9a4d9eeffb10acf32f2",
+      measurementId: "G-46FXS85XCT"
     };
 
     const app  = initializeApp(firebaseConfig);
@@ -129,6 +132,9 @@
       return w;
     };
 
+    // Path data:
+    // - Jika "Kelas Key" diisi → /classes/<key>
+    // - Jika kosong & user login → /users/<uid>/absensi
     function getPath(uid) {
       const key = (document.getElementById('classKey').value || '').trim();
       if (key) return `classes/${encodeURIComponent(key)}`;
@@ -136,11 +142,13 @@
       throw new Error('Isi Kelas Key atau login Google dulu.');
     }
 
+    // UI elemen
     const btnLogin  = document.getElementById('fbLogin');
     const btnLogout = document.getElementById('fbLogout');
     const btnSave   = document.getElementById('fbSave');
     const btnLoad   = document.getElementById('fbLoad');
 
+    // Optional: Google Sign-In
     btnLogin.onclick  = async () => { await signInWithPopup(auth, new GoogleAuthProvider()); };
     btnLogout.onclick = async () => { await signOut(auth); };
 
@@ -150,12 +158,13 @@
       btnLogout.textContent   = user ? `Keluar (${user.email||user.displayName||'akun'})` : 'Keluar';
     });
 
+    // Simpan ke Firebase
     btnSave.onclick = async () => {
       try {
         const w   = needApp();
         const data = w.collectAllData();
         const uid  = auth.currentUser && auth.currentUser.uid;
-        const path = getPath(uid);
+        const path = getPath(uid);            // bekerja baik dengan classKey (tanpa login)
         await set(ref(db, path), data);
         alert('✅ Tersimpan ke Firebase: ' + path);
       } catch (e) {
@@ -163,6 +172,7 @@
       }
     };
 
+    // Muat dari Firebase
     btnLoad.onclick = async () => {
       try {
         const uid  = auth.currentUser && auth.currentUser.uid;
