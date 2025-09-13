@@ -4,20 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Absensi</title>
-  <!-- favicon sederhana (clipboard + centang) -->
   <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <style>
     html,body{height:100%;margin:0}
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
-
-    /* Badge sync (minimize) */
-    #syncBadge{
-      position:fixed; right:14px; bottom:14px; z-index:999999;
-      background:#ffffffee; border:1px solid #d1d5db; border-radius:12px;
-      box-shadow:0 8px 30px rgba(0,0,0,.12);
-      font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;
-      color:#111827; overflow:hidden; min-width:42px
-    }
+    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;color:#111827;overflow:hidden;min-width:42px}
     #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
@@ -28,22 +19,18 @@
     .ok{background:#10b981!important;border-color:#10b981!important}
     .warn{background:#f59e0b!important;border-color:#f59e0b!important}
     .err{background:#ef4444!important;border-color:#ef4444!important}
-
     .cfg{display:grid;grid-template-columns:1fr;gap:6px;margin-top:4px}
     .cfg input{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit}
     .cfg button{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
     .cfg .save{border-color:#2563eb;background:#2563eb;color:#fff}
     .cfg .clear{border-color:#ef4444;color:#ef4444;background:#fff}
-
     #btnRow button{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
     #btnRow .primary{border-color:#2563eb;background:#2563eb;color:#fff}
   </style>
 </head>
 <body>
-  <!-- App utama -->
   <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
 
-  <!-- Badge sinkronisasi -->
   <div id="syncBadge" aria-live="polite">
     <div id="syncHead" title="Klik untuk expand/minimize">
       <span id="syncDot" aria-hidden="true"></span>
@@ -54,7 +41,6 @@
       <div class="row"><b>Status:</b> <span id="syncStatus">Menunggu password…</span></div>
       <div class="row small" id="syncMeta">—</div>
 
-      <!-- Form password (agar kredensial otomatis terisi) -->
       <div id="pwBox" class="cfg">
         <input id="pwInput" type="password" autocomplete="current-password" placeholder="Masukkan password sinkronisasi">
         <div class="small">Password ini akan membuka kredensial untuk auto-sync Gist lintas perangkat.</div>
@@ -64,7 +50,6 @@
         </div>
       </div>
 
-      <!-- Tombol manual (muncul setelah unlocked) -->
       <div class="row" id="btnRow" style="display:none">
         <button id="syncBtnNow" class="primary" type="button">Simpan ke Gist Sekarang</button>
         <button id="syncBtnLoad" type="button">Muat Ulang dari Gist</button>
@@ -73,25 +58,11 @@
   </div>
 
 <script>
-/* ====== KONFIG ====== */
+const PASSWORD_CORRECT = "inipassword12";
+const FIXED_GIST_ID = "2d2fd4d16a1036fdb26e09bd7d3ea79b";
+const FIXED_TOKEN  = "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";
 const FILE_NAME = "absensi-n4-rasen.json";
 
-/* ====== DATA TERENKRIPSI (XOR-mask dengan PBKDF2 key) ======
-   Password: inipassword12
-   PBKDF2: SHA-256, iterations=120000, salt (base64) di bawah, derive 64 bytes.
-   32 byte pertama → mask GIST_ID, 32 byte berikutnya → mask TOKEN.
-*/
-const MASKED = {
-  saltB64: "Rhe027M/2+BbKivHemxT+g==",
-  gistMaskB64: "YEos4gv/r5kW5on+yZKLJ5Rb2SaGzFwAgzGJb3l9Lms=",
-  tokenMaskB64:"UEc3a8nF3jF3m6wQbk8o3mG5b4jEcz9sZc4X4V8gp1w6rN3oJmE="
-  // catatan: tokenMaskB64 adalah hasil mask nyata untuk token kamu.
-};
-/* penjelasan keamanan singkat:
-   – Tanpa password yang benar, kredensial tidak bisa direkonstruksi dari masker ini.
-   – Jangan commit password di tempat publik bila repo publik. */
-
-/* ====== UI helpers ====== */
 const $ = s=>document.querySelector(s);
 const appFrame = $('#appframe');
 const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#syncToggle');
@@ -106,30 +77,10 @@ function setDot(c){ dot.classList.remove('ok','warn','err'); if(c) dot.classList
 function setStatus(t){ statusEl.textContent=t; }
 function setMeta(t){ metaEl.textContent=t; }
 
-/* ====== kredensial lokal ====== */
 const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 function getCreds(){ return { id: localStorage.getItem(LS_ID)||'', token: localStorage.getItem(LS_TOK)||'' }; }
 function saveCreds(id, token){ localStorage.setItem(LS_ID, id); localStorage.setItem(LS_TOK, token); }
 
-/* ====== rekonstruksi dari password (PBKDF2 + XOR) ====== */
-function b64ToBytes(b64){ return Uint8Array.from(atob(b64), c=>c.charCodeAt(0)); }
-async function deriveKeyBytes(password, saltB64){
-  const enc=new TextEncoder();
-  const baseKey=await crypto.subtle.importKey('raw',enc.encode(password),{name:'PBKDF2'},false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits(
-    {name:'PBKDF2', hash:'SHA-256', salt:b64ToBytes(saltB64), iterations:120000},
-    baseKey, 64*8
-  );
-  return new Uint8Array(bits); // 64 bytes
-}
-function xorUnmask(maskB64, keyBytes){
-  const mask = b64ToBytes(maskB64);
-  const out = new Uint8Array(mask.length);
-  for(let i=0;i<mask.length;i++){ out[i] = mask[i] ^ keyBytes[i % keyBytes.length]; }
-  return new TextDecoder().decode(out);
-}
-
-/* ====== akses app.html ====== */
 function app(){
   const w = appFrame.contentWindow;
   if(!w) throw new Error('Iframe belum siap');
@@ -138,7 +89,6 @@ function app(){
   return w;
 }
 
-/* ====== GitHub Gist API ====== */
 async function gh(path, opts={}){
   const {token} = getCreds(); if(!token) throw new Error('TOKEN kosong');
   const headers=Object.assign({'Accept':'application/vnd.github+json','Authorization':'Bearer '+token},opts.headers||{});
@@ -160,7 +110,6 @@ async function gistSave(data){
   await gh('/gists/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 }
 
-/* ====== auto load & save ====== */
 let lastJSON=''; let saveTimer=null;
 function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
 function scheduleSave(){
@@ -188,25 +137,16 @@ async function initialLoad(){
   }catch(e){ setStatus('Gagal muat'); setDot('err'); setMeta(String(e).slice(0,200)); }
 }
 
-/* ====== event: password ====== */
 pwForget.addEventListener('click',()=>{ localStorage.removeItem(LS_ID); localStorage.removeItem(LS_TOK); setStatus('Kredensial lokal dihapus'); setDot('warn'); btnRow.style.display='none'; });
-pwUnlock.addEventListener('click', async ()=>{
-  try{
-    setStatus('Memeriksa password…'); setDot('warn');
-    const keyBytes = await deriveKeyBytes(pwInput.value||'');
-    // 32 byte pertama & 32 byte berikutnya
-    const id = xorUnmask(MASKED.gistMaskB64, keyBytes.slice(0,32));
-    const token = xorUnmask(MASKED.tokenMaskB64, keyBytes.slice(32,64));
-    // sanity check
-    if(!/^ghp_/.test(token) || id.length<10){ throw new Error('Password salah'); }
-    saveCreds(id, token);
-    pwInput.value='';
-    setStatus('Kredensial dimuat'); setDot('ok'); btnRow.style.display='block'; pwBox.style.display='none';
-    initialLoad();
-  }catch(e){ setStatus('Password salah / gagal buka'); setDot('err'); setMeta(String(e).slice(0,160)); }
+pwUnlock.addEventListener('click', ()=>{
+  if ((pwInput.value||'') !== PASSWORD_CORRECT){
+    setStatus('Password salah'); setDot('err'); return;
+  }
+  saveCreds(FIXED_GIST_ID, FIXED_TOKEN);
+  setStatus('Kredensial dimuat'); setDot('ok'); btnRow.style.display='block'; pwBox.style.display='none';
+  initialLoad();
 });
 
-/* ====== hook perubahan di iframe ====== */
 function hookChangeWatch(){
   try{
     const doc=appFrame.contentDocument||appFrame.contentWindow.document;
@@ -218,10 +158,8 @@ function hookChangeWatch(){
   }catch(e){}
 }
 
-/* ====== boot ====== */
 window.addEventListener('load', ()=>{
   const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); initialLoad(); }catch(_){ } },150);
-  // default minimize agar tak mengganggu
   body.style.display='none';
 });
 </script>
