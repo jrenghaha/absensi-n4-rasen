@@ -10,7 +10,7 @@
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
 
     /* Badge Sync */
-    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;color:#111827;overflow:hidden;min-width:42px}
+    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;color:#111827;overflow:hidden;min-width:42px}
     #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
@@ -59,8 +59,11 @@
 <script>
 /* ====== KONFIG ====== */
 const PASSWORD_CORRECT = "inipassword12";
+// Link Google Docs Publish-to-Web punyamu:
 const DOC_URL = "https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub";
+// Nama file JSON di dalam Gist:
 const FILE_NAME = "absensi-n4-rasen.json";
+
 const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 
 /* ====== UI ====== */
@@ -70,6 +73,7 @@ const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#sync
 const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
 const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen'), pwClear=$('#pwClear');
 const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad');
+
 let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
 head.addEventListener('click',()=>setExpanded(!expanded));
@@ -155,45 +159,49 @@ async function initialLoad(){
   }catch(e){ setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e)); }
 }
 
-/* ====== parser kredensial (rekonstruksi 32 hex walau pecah) ====== */
+/* ====== parser kredensial (rekonstruksi 32 hex & potong ghp_) ====== */
 function extractCreds(raw) {
   let text = raw;
 
-  // HTML → textContent bila perlu
+  // Ambil textContent jika HTML (Publish to Web)
   if (/^\s*</.test(text)) {
     const tmp = document.createElement('div');
     tmp.innerHTML = text;
     text = tmp.textContent || '';
   }
 
-  // Bersihkan
+  // Bersihkan karakter aneh
   text = text
     .replace(/\r/g,'')
     .replace(/\u00A0/g,' ')
     .replace(/[\u200B-\u200D\uFEFF]/g,'')
-    .replace(/[^\S\n]+/g, ' ')
     .trim();
 
-  // Coba 32 hex utuh
+  // Gist ID: coba 32 hex utuh
   let gistId = (text.match(/\b([a-f0-9]{32})\b/i) || [,''])[1] || '';
 
-  // Kalau gagal, kumpulkan semua char hex jadi kelompok, ambil 32 pertama
+  // Jika gagal, gabungkan kelompok hex dan ambil 32 pertama
   if (!gistId) {
-    const groups = [];
-    let buf = '';
+    let buf='', groups=[];
     for (const ch of text) {
-      if (/[a-f0-9]/i.test(ch)) buf += ch;
-      else { if (buf.length) { groups.push(buf); buf=''; } }
+      if (/[a-f0-9]/i.test(ch)) buf+=ch; else { if (buf) {groups.push(buf); buf='';} }
     }
-    if (buf.length) groups.push(buf);
-    for (const g of groups) { if (g.length >= 32) { gistId = g.slice(0,32); break; } }
+    if (buf) groups.push(buf);
+    for (const g of groups) if (g.length>=32){ gistId=g.slice(0,32); break; }
   }
 
-  // Token (ketat), atau fallback longgar lalu trim ke charset valid
-  let token = (text.match(/\b(ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+)\b/i) || [,''])[1] || '';
+  // Token:
+  // utamakan ghp_ + 36 alnum (format PAT lama: 36 char)
+  let token = '';
+  const ghpIdx = text.search(/ghp_/i);
+  if (ghpIdx >= 0) {
+    const tail = text.slice(ghpIdx + 4).replace(/[^A-Za-z0-9]/g, '');
+    if (tail.length >= 36) token = 'ghp_' + tail.slice(0,36);
+  }
+  // fallback: github_pat_ (biarkan alnum + underscore)
   if (!token) {
-    const loose = text.match(/(ghp_[^\s"'<>]+|github_pat_[^\s"'<>]+)/i);
-    if (loose) token = loose[1].replace(/[^A-Za-z0-9_]/g, '');
+    const m = text.match(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/);
+    if (m) token = m[0];
   }
 
   return { gistId, token };
@@ -209,8 +217,12 @@ async function unlockViaGoogleDoc(){
     if(!res.ok) throw new Error('Fetch GDocs: '+res.status+' '+res.statusText);
     const raw = await res.text();
     const { gistId, token } = extractCreds(raw);
+
+    // Validasi akhir
     if (!/^[a-f0-9]{32}$/i.test(gistId))  throw new Error('Gist ID tidak valid');
-    if (!/^gh(p|ithub_pat_)/i.test(token)) throw new Error('Token tidak valid');
+    if (!/^ghp_[A-Za-z0-9]{36}$/.test(token) && !/^github_pat_[A-Za-z0-9_]{20,}$/.test(token))
+      throw new Error('Token tidak valid');
+
     saveCreds(gistId, token);
     setStatus('Kredensial dimuat','ok'); setDot('ok');
     await initialLoad();
