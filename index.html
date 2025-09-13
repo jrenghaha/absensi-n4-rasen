@@ -1,224 +1,116 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
   <title>Absensi</title>
-  <!-- Favicon sederhana (clipboard + centang) -->
-  <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <style>
-    html,body{height:100%;margin:0}
-    #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
-
-    /* Badge Sync (minimize) */
-    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;color:#111827;overflow:hidden;min-width:42px}
-    #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
-    #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
-    #syncTitle{font-weight:600}
-    #syncToggle{margin-left:auto;border:1px solid #d1d5db;border-radius:8px;padding:2px 8px;font-weight:700;background:#fff}
-    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:380px}
-    #syncBody .row{margin:6px 0;color:#374151}
-    #syncBody .small{font-size:12px;color:#6b7280}
-    .ok{background:#10b981!important;border-color:#10b981!important}
-    .warn{background:#f59e0b!important;border-color:#f59e0b!important}
-    .err{background:#ef4444!important;border-color:#ef4444!important}
-
-    .btn{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
-    .btn.primary{border-color:#2563eb;background:#2563eb;color:#fff}
-    .btn.ghost{border-color:#d1d5db}
-    .row.controls{display:flex;gap:8px;flex-wrap:wrap}
-
-    /* Advanced (manual credentials) */
-    #advWrap{display:none;border-top:1px dashed #e5e7eb;margin-top:6px;padding-top:8px}
-    .field{display:flex;gap:6px;margin:6px 0}
-    .field label{width:88px;color:#6b7280}
-    .field input{flex:1;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit}
-    #advToggle{float:right}
+    body{font-family:sans-serif;margin:2em;}
+    #loginBox{border:1px solid #ccc;padding:1em;max-width:300px;}
+    #status{margin-top:.5em;font-size:.9em;color:#555;}
+    #app{display:none;}
+    .ok{color:green;}
+    .err{color:red;}
+    .warn{color:orange;}
   </style>
 </head>
 <body>
-  <!-- App utama -->
-  <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
+  <h1>Absensi N4 Rasen</h1>
 
-  <!-- Badge Sync -->
-  <div id="syncBadge" aria-live="polite">
-    <div id="syncHead" title="Klik untuk expand/minimize">
-      <span id="syncDot" aria-hidden="true"></span>
-      <span id="syncTitle">Sync</span>
-      <button id="syncToggle" type="button">▴</button>
-    </div>
-    <div id="syncBody">
-      <div class="row"><b>Status:</b> <span id="syncStatus">Menunggu kredensial…</span></div>
-      <div class="row small" id="syncMeta">—</div>
+  <!-- Login password -->
+  <div id="loginBox">
+    <label>Masukkan Password:<br>
+      <input type="password" id="pwInput">
+    </label>
+    <button id="btnLogin">Buka</button>
+    <div id="status"></div>
+  </div>
 
-      <div class="row controls" id="btnRow" style="display:none">
-        <button id="syncBtnNow" class="btn primary" type="button">Simpan ke Gist Sekarang</button>
-        <button id="syncBtnLoad" class="btn" type="button">Muat Ulang dari Gist</button>
-        <button id="clearLocal" class="btn ghost" type="button">Hapus Kredensial Lokal</button>
-      </div>
-
-      <div class="row small">
-        Tips cepat: buka sekali dengan <code>?gist=ID&token=PAT</code>. Kredensial disimpan lokal & query dibersihkan otomatis.
-        <button id="advToggle" class="btn ghost" type="button">Advanced</button>
-      </div>
-
-      <!-- Advanced: input manual kredensial (opsional) -->
-      <div id="advWrap">
-        <div class="field"><label for="gistId">Gist ID</label><input id="gistId" placeholder="mis. 2d2f…"></div>
-        <div class="field"><label for="gistTok">GitHub PAT</label><input id="gistTok" placeholder="ghp_… (scope: gist)"></div>
-        <div class="row controls">
-          <button id="saveCreds" class="btn primary" type="button">Simpan & Pakai</button>
-        </div>
-        <div class="small">Kredensial hanya disimpan di <em>browser ini</em> (localStorage).</div>
-      </div>
-    </div>
+  <!-- Konten utama -->
+  <div id="app">
+    <p><b>Status Sync:</b> <span id="syncStatus">Belum login</span></p>
+    <button id="btnSave">Simpan ke Gist</button>
+    <button id="btnLoad">Muat dari Gist</button>
+    <pre id="debug"></pre>
   </div>
 
 <script>
-/* ====== KONFIG ====== */
-const FILE_NAME = "absensi-n4-rasen.json";
+const PASSWORD_CORRECT = "inipassword12";
+const DOC_EXPORT_URL = "https://docs.google.com/document/d/e/2PACX-1vSUP5ZTsG5gF8BenDLq3Vv6rsbC7O2cP_Ru3cmE3kAOVMPsB_clIY8dBkDbBxB4RaT_6e7aZl-1OosK/pub";
 
-/* ====== UI ====== */
-const $ = s=>document.querySelector(s);
-const appFrame = $('#appframe');
-const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#syncToggle');
-const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
-const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad'), clearLocal=$('#clearLocal');
-const advToggle=$('#advToggle'), advWrap=$('#advWrap'), gistIdInp=$('#gistId'), gistTokInp=$('#gistTok'), saveCredsBtn=$('#saveCreds');
+const pwInput = document.getElementById("pwInput");
+const btnLogin = document.getElementById("btnLogin");
+const statusBox = document.getElementById("status");
+const app = document.getElementById("app");
+const syncStatus = document.getElementById("syncStatus");
+const debug = document.getElementById("debug");
 
-let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
-setExpanded(false);
-head.addEventListener('click',()=>setExpanded(!expanded));
-advToggle.addEventListener('click',()=>{ advWrap.style.display = advWrap.style.display==='none'?'block':'none'; });
-
-function setDot(c){ dot.classList.remove('ok','warn','err'); if(c) dot.classList.add(c); }
-function setStatus(t){ statusEl.textContent=t; }
-function setMeta(t){ metaEl.textContent=t; }
-
-/* ====== Kredensial lokal + URL bootstrap ====== */
-const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
-function getCreds(){
-  // Bootstrap dari URL (?gist=...&token=...) — sekali saja
-  const url=new URL(location.href);
-  const uG=url.searchParams.get('gist');
-  const uT=url.searchParams.get('token');
-  if(uG && uT){
-    localStorage.setItem(LS_ID, uG.trim());
-    localStorage.setItem(LS_TOK, uT.trim());
-    url.searchParams.delete('gist'); url.searchParams.delete('token');
-    history.replaceState({},'',url.toString());
-  }
-  return { id: localStorage.getItem(LS_ID)||'', token: localStorage.getItem(LS_TOK)||'' };
-}
-function saveCreds(id, token){
-  localStorage.setItem(LS_ID, id.trim());
-  localStorage.setItem(LS_TOK, token.trim());
-}
-clearLocal.addEventListener('click', ()=>{
-  localStorage.removeItem(LS_ID); localStorage.removeItem(LS_TOK);
-  setStatus('Kredensial lokal dihapus'); setDot('warn'); btnRow.style.display='none';
-});
-saveCredsBtn.addEventListener('click', ()=>{
-  if(!gistIdInp.value || !gistTokInp.value){ setStatus('Isi Gist ID & PAT dulu'); setDot('err'); return; }
-  saveCreds(gistIdInp.value, gistTokInp.value);
-  setStatus('Kredensial disimpan'); setDot('ok'); initialLoad();
-});
-gistIdInp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ saveCredsBtn.click(); } });
-gistTokInp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ saveCredsBtn.click(); } });
-
-/* ====== akses app.html ====== */
-function app(){
-  const w = appFrame.contentWindow;
-  if(!w) throw new Error('Iframe belum siap');
-  if(typeof w.collectAllData!=='function' || typeof w.applyAllData!=='function')
-    throw new Error('Fungsi collectAllData/applyAllData belum ada');
-  return w;
+function setStatus(msg,cls=""){statusBox.textContent=msg;statusBox.className=cls;}
+function saveCreds(id,token){
+  localStorage.setItem("gistId",id);
+  localStorage.setItem("gistToken",token);
 }
 
-/* ====== GitHub API (aman tanpa hardcode) ====== */
-async function gh(path, opts = {}) {
-  const { token } = getCreds(); if (!token) throw new Error('TOKEN kosong');
-  const headers = Object.assign({
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Authorization': 'token ' + token
-  }, opts.headers || {});
-  const res = await fetch('https://api.github.com' + path, { ...opts, headers, mode: 'cors' });
-  if (!res.ok) {
-    const t = await res.text().catch(() => res.statusText);
-    throw new Error('GitHub API ' + res.status + ': ' + t);
-  }
-  return res.json();
-}
-async function gistLoad() {
-  const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
-  const out = await gh('/gists/' + id);
-  const file = out.files[FILE_NAME] ||
-               Object.values(out.files).find(f => /\.json$/i.test(f.filename));
-  if (!file) throw new Error('File JSON tidak ditemukan di Gist');
-
-  if (file.content && typeof file.content === 'string') {
-    return JSON.parse(file.content);
-  }
-  const res = await fetch(file.raw_url, {
-    mode: 'cors',
-    headers: { 'Authorization': 'token ' + getCreds().token }
-  });
-  if (!res.ok) throw new Error('Gagal fetch raw_url: ' + res.status + ' ' + res.statusText);
-  return await res.json();
-}
-async function gistSave(data){
-  const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
-  const body = { files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } } };
-  await gh('/gists/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-}
-
-/* ====== Auto load/save ====== */
-let lastJSON=''; let saveTimer=null;
-function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
-function scheduleSave(){
-  if(saveTimer) clearTimeout(saveTimer);
-  saveTimer=setTimeout(async ()=>{
-    try{
-      const d=app().collectAllData(); const j=jsonOf(d);
-      if(j && j!==lastJSON){
-        setStatus('Menyimpan ke Gist…'); setDot('warn');
-        await gistSave(d); lastJSON=j;
-        setStatus('Tersimpan'); setDot('ok'); setMeta('Terakhir simpan: '+new Date().toLocaleString('id-ID'));
-      }
-    }catch(e){ setStatus('Gagal simpan'); setDot('err'); setMeta((e&&e.stack)?e.stack:String(e)); }
-  },1200);
-}
-async function initialLoad(){
-  const {id,token}=getCreds();
-  if(!id || !token){ setStatus('Menunggu kredensial…'); setDot('err'); return; }
+btnLogin.onclick = async ()=>{
+  const pass = (pwInput.value||"").trim();
+  if(pass!==PASSWORD_CORRECT){ setStatus("Password salah","err"); return; }
+  setStatus("Mengambil kredensial…","warn");
   try{
-    setStatus('Memuat dari Gist…'); setDot('warn');
-    const data=await gistLoad(); app().applyAllData(data);
-    lastJSON=jsonOf(app().collectAllData());
-    setStatus('Dimuat dari Gist'); setDot('ok'); setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
-    btnRow.style.display='block';
-  }catch(e){ setStatus('Gagal muat'); setDot('err'); setMeta((e&&e.stack)?e.stack:String(e)); }
-}
+    const res = await fetch(DOC_EXPORT_URL,{mode:"cors"});
+    let text = await res.text();
 
-/* ====== Observe perubahan dari iframe ====== */
-function hookChangeWatch(){
+    // Jika HTML, parse isi jadi textContent
+    if(/^\s*</.test(text)){
+      const tmp = document.createElement("div");
+      tmp.innerHTML=text;
+      text=(tmp.textContent||"").replace(/\r/g,"");
+    }
+    const lines=text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    const gistId=(lines.find(s=>/^[a-f0-9]{32}$/i.test(s))||lines[0]||"").trim();
+    const token=(lines.find(s=>/^gh(p|ithub_pat_)/i.test(s))||lines[1]||"").trim();
+
+    if(!/^[a-f0-9]{32}$/i.test(gistId)) throw new Error("Gist ID tidak valid");
+    if(!/^gh(p|ithub_pat_)/i.test(token)) throw new Error("Token tidak valid");
+
+    saveCreds(gistId,token);
+    setStatus("Login berhasil","ok");
+    document.getElementById("loginBox").style.display="none";
+    app.style.display="block";
+    syncStatus.textContent="Kredensial dimuat";
+  }catch(e){
+    setStatus("Gagal ambil kredensial: "+e.message,"err");
+  }
+};
+
+// Demo tombol Save/Load
+document.getElementById("btnSave").onclick=async()=>{
+  const gistId=localStorage.getItem("gistId");
+  const token=localStorage.getItem("gistToken");
+  if(!gistId||!token){alert("Belum login");return;}
   try{
-    const doc=appFrame.contentDocument||appFrame.contentWindow.document;
-    ['input','change','keyup','blur','click'].forEach(ev=>{
-      doc.addEventListener(ev,()=>scheduleSave(),{passive:true});
+    const res=await fetch("https://api.github.com/gists/"+gistId,{
+      method:"PATCH",
+      headers:{ "Authorization":"token "+token,"Content-Type":"application/json"},
+      body:JSON.stringify({files:{"absensi.json":{content:JSON.stringify({msg:"tes simpan "+Date.now()})}}})
     });
-    const mo=new MutationObserver(()=>scheduleSave());
-    mo.observe(doc.body,{subtree:true,childList:true,attributes:true,characterData:true});
-  }catch(e){}
-}
+    const data=await res.json();
+    debug.textContent=JSON.stringify(data,null,2);
+    syncStatus.textContent="Data tersimpan ke Gist!";
+  }catch(e){debug.textContent=e;}
+};
 
-/* ====== Boot ====== */
-window.addEventListener('load', ()=>{
-  const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); initialLoad(); }catch(_){ } },150);
-  // start minimized agar tak menutupi konten
-  body.style.display='none';
-});
+document.getElementById("btnLoad").onclick=async()=>{
+  const gistId=localStorage.getItem("gistId");
+  const token=localStorage.getItem("gistToken");
+  if(!gistId||!token){alert("Belum login");return;}
+  try{
+    const res=await fetch("https://api.github.com/gists/"+gistId,{
+      headers:{ "Authorization":"token "+token}
+    });
+    const data=await res.json();
+    debug.textContent=JSON.stringify(data,null,2);
+    syncStatus.textContent="Data dimuat dari Gist!";
+  }catch(e){debug.textContent=e;}
+};
 </script>
 </body>
 </html>
