@@ -10,7 +10,7 @@
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
 
     /* Badge Sync */
-    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;color:#111827;overflow:hidden;min-width:42px}
+    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;color:#111827;overflow:hidden;min-width:42px}
     #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
@@ -25,10 +25,9 @@
     .btn.primary{border-color:#2563eb;background:#2563eb;color:#fff}
     .btn.ghost{border-color:#d1d5db}
 
-    /* Login bar */
+    /* Login */
     #loginBox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     #pwInput{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit;flex:1;min-width:220px}
-    #status{font-size:12px;color:#6b7280}
   </style>
 </head>
 <body>
@@ -48,7 +47,6 @@
         <input id="pwInput" type="password" placeholder="Password" autocomplete="current-password">
         <button id="pwOpen" class="btn primary" type="button">Buka</button>
         <button id="pwClear" class="btn ghost" type="button">Hapus Kredensial</button>
-        <div id="status" class="small"></div>
       </div>
 
       <div class="row" id="btnRow" style="display:none;gap:8px;flex-wrap:wrap">
@@ -63,7 +61,6 @@
 const PASSWORD_CORRECT = "inipassword12";
 const DOC_URL = "https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub";
 const FILE_NAME = "absensi-n4-rasen.json";
-
 const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 
 /* ====== UI ====== */
@@ -73,7 +70,6 @@ const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#sync
 const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
 const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen'), pwClear=$('#pwClear');
 const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad');
-
 let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
 head.addEventListener('click',()=>setExpanded(!expanded));
@@ -95,10 +91,9 @@ function app(){
   return w;
 }
 
-/* ====== GitHub API helper ====== */
+/* ====== GitHub API ====== */
 async function gh(path, opts = {}) {
-  const { token } = getCreds();
-  if (!token) throw new Error('TOKEN kosong');
+  const { token } = getCreds(); if (!token) throw new Error('TOKEN kosong');
   const headers = Object.assign({
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
@@ -160,14 +155,18 @@ async function initialLoad(){
   }catch(e){ setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e)); }
 }
 
-/* ====== parser kredensial (kebal HTML/NBSP/zero-width) ====== */
+/* ====== parser kredensial (rekonstruksi 32 hex walau pecah) ====== */
 function extractCreds(raw) {
   let text = raw;
-  if (/^\s*</.test(text)) { // HTML from publish-to-web
+
+  // HTML → textContent bila perlu
+  if (/^\s*</.test(text)) {
     const tmp = document.createElement('div');
     tmp.innerHTML = text;
     text = tmp.textContent || '';
   }
+
+  // Bersihkan
   text = text
     .replace(/\r/g,'')
     .replace(/\u00A0/g,' ')
@@ -175,13 +174,32 @@ function extractCreds(raw) {
     .replace(/[^\S\n]+/g, ' ')
     .trim();
 
-  // Ambil SUBSTRING yang match (bukan seluruh baris)
-  const idMatch  = [...text.matchAll(/\b([a-f0-9]{32})\b/ig)][0]?.[1] || '';
-  const tokMatch = [...text.matchAll(/\b(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/ig)][0]?.[1] || '';
-  return { gistId:idMatch, token:tokMatch };
+  // Coba 32 hex utuh
+  let gistId = (text.match(/\b([a-f0-9]{32})\b/i) || [,''])[1] || '';
+
+  // Kalau gagal, kumpulkan semua char hex jadi kelompok, ambil 32 pertama
+  if (!gistId) {
+    const groups = [];
+    let buf = '';
+    for (const ch of text) {
+      if (/[a-f0-9]/i.test(ch)) buf += ch;
+      else { if (buf.length) { groups.push(buf); buf=''; } }
+    }
+    if (buf.length) groups.push(buf);
+    for (const g of groups) { if (g.length >= 32) { gistId = g.slice(0,32); break; } }
+  }
+
+  // Token (ketat), atau fallback longgar lalu trim ke charset valid
+  let token = (text.match(/\b(ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+)\b/i) || [,''])[1] || '';
+  if (!token) {
+    const loose = text.match(/(ghp_[^\s"'<>]+|github_pat_[^\s"'<>]+)/i);
+    if (loose) token = loose[1].replace(/[^A-Za-z0-9_]/g, '');
+  }
+
+  return { gistId, token };
 }
 
-/* ====== password → fetch Google Docs ====== */
+/* ====== password → ambil dari Google Docs ====== */
 async function unlockViaGoogleDoc(){
   const pass = (pwInput.value||'').trim();
   if (pass !== PASSWORD_CORRECT){ setStatus('Password salah','err'); setDot('err'); return; }
@@ -202,9 +220,9 @@ async function unlockViaGoogleDoc(){
 }
 
 /* ====== hooks ====== */
-$('#pwOpen').addEventListener('click', unlockViaGoogleDoc);
-$('#pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
-$('#pwClear').addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
+pwOpen.addEventListener('click', unlockViaGoogleDoc);
+pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
+pwClear.addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
 
 function hookChangeWatch(){
   try{
