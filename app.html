@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Absensi Sept–Okt 2025 • Kelas N4 Rasen (FULL)</title>
+<title>Absensi</title>
+<!-- Favicon/logo emoji absensi (clipboard + centang) -->
+<link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   :root{
     --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --border:#000;
@@ -107,7 +109,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Absensi Sept–Okt 2025</h1>
+  <h1>Absensi Sept–Nov 2025</h1>
 
   <div class="titlebar">
     <label for="titleInput">Judul Kelas:</label>
@@ -123,6 +125,7 @@
     <select id="monthSel">
       <option value="september">Absensi September</option>
       <option value="oktober">Absensi Oktober</option>
+      <option value="november">Absensi November</option>
     </select>
 
     <button class="primary" id="btnClear">Clear All</button>
@@ -174,14 +177,11 @@
   </div>
 </div>
 
-<!-- ===== Modals ===== -->
-<!-- Cetak -->
+<!-- ===== Modals (cetak, order, clear day) ===== -->
 <div class="modal-backdrop" id="printModal">
   <div class="modal">
     <header>Pilih urutan untuk rekap cetak</header>
-    <main>
-      <p>Urutan ini hanya memengaruhi <b>rekap cetak/PDF</b>, tidak mengubah tampilan tabel.</p>
-    </main>
+    <main><p>Urutan ini hanya memengaruhi <b>rekap cetak/PDF</b>, tidak mengubah tampilan tabel.</p></main>
     <footer>
       <button id="printCancel">Cancel</button>
       <button class="primary" id="printOrderAbjad">Tampilkan urutan sesuai abjad</button>
@@ -190,13 +190,10 @@
   </div>
 </div>
 
-<!-- Modal urutan untuk tombol ＋ (tambah nilai per tanggal) -->
 <div class="modal-backdrop" id="orderModal">
   <div class="modal">
     <header>Pilih urutan untuk pengisian nilai tanggal ini</header>
-    <main>
-      <p>Urutan ini hanya menentukan urutan input nilai otomatis.</p>
-    </main>
+    <main><p>Urutan ini hanya menentukan urutan input nilai otomatis.</p></main>
     <footer>
       <button id="orderCancel">Cancel</button>
       <button class="primary" id="orderAbjad">Tampilkan urutan sesuai abjad</button>
@@ -205,14 +202,10 @@
   </div>
 </div>
 
-<!-- Clear Day -->
 <div class="modal-backdrop" id="clearDayModal">
   <div class="modal">
     <header>Hapus data di tanggal ini</header>
-    <main>
-      <p id="clearDayLabel">Tanggal: —</p>
-      <p>Pilih aksi yang diinginkan:</p>
-    </main>
+    <main><p id="clearDayLabel">Tanggal: —</p><p>Pilih aksi yang diinginkan:</p></main>
     <footer>
       <button id="clearDayCancel">Cancel</button>
       <button class="danger" id="clearDayBoth">Hapus nilai + absensi</button>
@@ -243,12 +236,18 @@ let PEOPLE = [
 ].map(n=>({name:n}));
 
 const rangeDates=(y,m)=>{const first=new Date(y,m,1),last=new Date(y,m+1,0),arr=[];for(let d=new Date(first);d<=last;d.setDate(d.getDate()+1))arr.push(new Date(d));return arr;};
-const DATES={september:rangeDates(2025,8),oktober:rangeDates(2025,9)};
+const DATES={
+  september:rangeDates(2025,8),
+  oktober:  rangeDates(2025,9),
+  november: rangeDates(2025,10)
+};
+const MONTHS = ['september','oktober','november'];
 
 // DATA[month][row][col] = { a: '', t: '', s: null }
 let DATA = {
   september: PEOPLE.map(()=> DATES.september.map(()=>({a:'',t:'',s:null})) ),
-  oktober:   PEOPLE.map(()=> DATES.oktober.map(()=>({a:'',t:'',s:null})) )
+  oktober:   PEOPLE.map(()=> DATES.oktober.map(()=>({a:'',t:'',s:null})) ),
+  november:  PEOPLE.map(()=> DATES.november.map(()=>({a:'',t:'',s:null})) )
 };
 
 const titleInput=document.getElementById('titleInput');
@@ -264,7 +263,7 @@ const isWeekend=d=>isSunday(d)||isSaturday(d);
 const needsTaisouWeekday=d=>[2,4].includes(d.getDay()); // Tue/Thu
 const toLocalYMD=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`;};
 
-/* ========= Header + mini tombol (＋ & 🗑) ========= */
+/* ========= Header ========= */
 function buildHeader(monthKey){
   thead.innerHTML='';
   const dates=DATES[monthKey];
@@ -466,7 +465,7 @@ function buildBody(monthKey){
   });
 }
 
-/* ========= Auto nilai per siswa (helper) ========= */
+/* ========= Helper Isian Nilai ========= */
 function parseBulkInput(txt) {
   if (!txt) return {range: null, scores: []};
   const m = txt.match(/^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(.+)$/);
@@ -514,7 +513,7 @@ document.getElementById('orderCancel').addEventListener('click', ()=>{ orderReso
 document.getElementById('orderMutlak').addEventListener('click', ()=>{ orderResolve && orderResolve('mutlak'); closeOrderModal(); });
 document.getElementById('orderAbjad').addEventListener('click', ()=>{ orderResolve && orderResolve('abjad'); closeOrderModal(); });
 
-/* ========= Bulk isi nilai PER TANGGAL (pakai modal order) ========= */
+/* ========= Bulk isi nilai PER TANGGAL ========= */
 async function bulkFillForDate(monKey, cIdx){
   const d = DATES[monKey][cIdx];
   if (isWeekend(d)) { alert('Tidak bisa mengisi nilai otomatis pada Sabtu/Minggu.'); return; }
@@ -572,7 +571,7 @@ async function bulkFillForDate(monKey, cIdx){
   renderAll();
 }
 
-/* ========= Clear Day (modal) ========= */
+/* ========= Clear Day ========= */
 let pendingClear = null; // {monKey, cIdx}
 const clearDayModal = document.getElementById('clearDayModal');
 const clearDayLabel = document.getElementById('clearDayLabel');
@@ -598,7 +597,7 @@ document.getElementById('clearDayBoth').addEventListener('click', ()=>{
   closeClearDayModal(); renderAll();
 });
 
-/* ========= Print Summary (modal pilihan) ========= */
+/* ========= Print Summary ========= */
 const printModal = document.getElementById('printModal');
 function openPrintModal(){ printModal.style.display='flex'; }
 function closePrintModal(){ printModal.style.display='none'; }
@@ -654,12 +653,21 @@ function renderAll(){ const key=monthSel.value; buildHeader(key); buildBody(key)
 
 function clearAll(){
   if(!confirm('Hapus SEMUA data termasuk NAMA?')) return;
-  PEOPLE=[]; DATA={september:[],oktober:[]}; renderAll();
+  PEOPLE=[];
+  DATA = {september:[], oktober:[], november:[]};
+  renderAll();
 }
 
-function collectAllData(){ return {title:TITLE,people:PEOPLE.map(p=>({name:p.name})),
-  dates:{september:DATES.september.map(toLocalYMD), oktober:DATES.oktober.map(toLocalYMD)},
-  values:DATA, month:monthSel.value}; }
+function collectAllData(){ return {
+  title:TITLE,
+  people:PEOPLE.map(p=>({name:p.name})),
+  dates:{
+    september:DATES.september.map(toLocalYMD),
+    oktober:  DATES.oktober.map(toLocalYMD),
+    november: DATES.november.map(toLocalYMD)
+  },
+  values:DATA, month:monthSel.value
+};}
 
 function coerceCell(mon, c, raw){
   const d = DATES[mon][c]; const weekend=(d.getDay()===0||d.getDay()===6);
@@ -679,7 +687,7 @@ function applyAllData(obj){
     if(!obj || !obj.values) throw new Error('struktur kosong');
     TITLE = obj.title || TITLE; titleInput.value=TITLE;
     if (Array.isArray(obj.people)) PEOPLE=obj.people.map(p=>({name:p.name||''}));
-    ['september','oktober'].forEach(mon=>{
+    MONTHS.forEach(mon=>{
       const cols=DATES[mon].length; const incoming=obj.values[mon];
       if (!Array.isArray(incoming)) throw new Error('values.'+mon+' bukan array');
       const rows=PEOPLE.length; const out=[];
@@ -690,7 +698,7 @@ function applyAllData(obj){
       }
       DATA[mon]=out;
     });
-    monthSel.value = (obj.month==='september'||obj.month==='oktober') ? obj.month : 'september';
+    monthSel.value = (MONTHS.includes(obj.month)? obj.month : 'september');
     renderAll();
   }catch(e){
     console.error(e);
@@ -698,37 +706,36 @@ function applyAllData(obj){
   }
 }
 
-/* ====== NO-OP STORAGE (matikan simpan ke browser) ====== */
-function saveToLocal(){ /* dimatikan sesuai permintaan */ }
+/* ====== NO-OP STORAGE ====== */
+function saveToLocal(){ /* dimatikan */ }
 function loadFromLocal(){ return false; }
 function clearLocal(){ /* dimatikan */ }
 
-/* ========= Sorting ========= */
+/* ========= Sorting & CRUD ========= */
 function sortAZ(){
   const idxs=PEOPLE.map((_,i)=>i).sort((a,b)=>(PEOPLE[a].name||'').toLowerCase().localeCompare((PEOPLE[b].name||'').toLowerCase()));
-  PEOPLE=idxs.map(i=>PEOPLE[i]); ['september','oktober'].forEach(mon=>{DATA[mon]=idxs.map(i=>DATA[mon][i]);}); renderAll();
+  PEOPLE=idxs.map(i=>PEOPLE[i]);
+  MONTHS.forEach(mon=>{DATA[mon]=idxs.map(i=>DATA[mon][i]);});
+  renderAll();
 }
 function sortMutlak(){
   const mapNameToIdx = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
-  let idxs = ABSOLUTE_ORDER
-    .map(nm => mapNameToIdx.has(nm) ? mapNameToIdx.get(nm) : null)
-    .filter(i => i !== null);
-  for (let i = 0; i < PEOPLE.length; i++) {
-    if (!idxs.includes(i)) idxs.push(i);
-  }
+  let idxs = ABSOLUTE_ORDER.map(nm => mapNameToIdx.has(nm) ? mapNameToIdx.get(nm) : null).filter(i => i !== null);
+  for (let i = 0; i < PEOPLE.length; i++) { if (!idxs.includes(i)) idxs.push(i); }
   PEOPLE = idxs.map(i => PEOPLE[i]);
-  ['september','oktober'].forEach(mon=>{ DATA[mon] = idxs.map(i => DATA[mon][i]); });
+  MONTHS.forEach(mon=>{ DATA[mon] = idxs.map(i => DATA[mon][i]); });
   renderAll();
 }
 function addPerson(name){
   if(!name) return;
   PEOPLE.push({name});
-  DATA.september.push(DATES.september.map(()=>({a:'',t:'',s:null})));
-  DATA.oktober.push(DATES.oktober.map(()=>({a:'',t:'',s:null})));
+  MONTHS.forEach(mon=>{ DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null}))); });
   document.getElementById('newName').value=''; renderAll();
 }
 function removePerson(rIdx){
-  PEOPLE.splice(rIdx,1); ['september','oktober'].forEach(mon=>DATA[mon].splice(rIdx,1)); renderAll();
+  PEOPLE.splice(rIdx,1);
+  MONTHS.forEach(mon=>DATA[mon].splice(rIdx,1));
+  renderAll();
 }
 
 /* ========= Init & events ========= */
@@ -740,11 +747,12 @@ document.getElementById('btnClear').addEventListener('click',clearAll);
 // Unduh / Muat JSON
 document.getElementById('btnSave').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify(collectAllData())],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kelas_N4_rasen_absensi_Sept-Okt_2025.json'; a.click();
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kelas_N4_rasen_absensi_Sept-Nov_2025.json'; a.click();
 });
 const fileInput=document.getElementById('fileInput');
 document.getElementById('btnLoad').addEventListener('click',()=>fileInput.click());
-fileInput.addEventListener('change',e=>{const f=e.target.files[0]; if(!f) return; const rdr=new FileReader();
+fileInput.addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return; const rdr=new FileReader();
   rdr.onload=()=>{ try{ applyAllData(JSON.parse(rdr.result)); } catch(err){ alert('File tidak valid / bukan JSON.'); } };
   rdr.readAsText(f); fileInput.value='';
 });
