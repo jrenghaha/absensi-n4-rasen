@@ -122,10 +122,14 @@ async function gistSave(data){
   await gh('/gists/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
 }
 
-/* ====== auto load/save ====== */
-let lastJSON=''; let saveTimer=null;
+/* ====== auto load/save (dengan guard) ====== */
+let lastJSON=''; 
+let saveTimer=null; 
+let isLoading=false;    // guard: jangan autosave saat loading
+
 function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
 function scheduleSave(){
+  if (isLoading) return;             // cegah save saat sedang load
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer=setTimeout(async ()=>{
     try{
@@ -138,72 +142,57 @@ function scheduleSave(){
     }catch(e){ setStatus('Gagal simpan','err'); setDot('err'); setMeta(e.message||String(e)); }
   },1200);
 }
+
 async function initialLoad(){
   const {id,token}=getCreds();
   if(!id || !token){ setStatus('Perlu password','err'); setDot('err'); return; }
   try{
+    isLoading = true;                            // start guard
     setStatus('Memuat dari Gist…','warn'); setDot('warn');
     const data=await gistLoad(); app().applyAllData(data);
     lastJSON=jsonOf(app().collectAllData());
-    setStatus('Dimuat dari Gist','ok'); setDot('ok'); setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
+    setStatus('Dimuat dari Gist','ok'); setDot('ok');
+    setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
     btnRow.style.display='block'; loginBox.style.display='none';
-  }catch(e){ setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e)); }
+  }catch(e){
+    setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e));
+  } finally {
+    isLoading = false;                           // end guard
+  }
 }
 
-/* ====== PARSER: rakit 32 hex & potong ghp_ ke 36 ====== */
+/* ====== parser kredensial (rekonstruksi 32 hex & potong ghp_) ====== */
 function extractCreds(raw) {
   let text = raw;
+  if (/^\s*</.test(text)) { const tmp=document.createElement('div'); tmp.innerHTML=text; text=tmp.textContent||''; }
+  text = text.replace(/\r/g,'').replace(/\u00A0/g,' ').replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
 
-  // HTML → textContent jika perlu
-  if (/^\s*</.test(text)) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = text;
-    text = tmp.textContent || '';
-  }
-
-  // Bersihkan karakter aneh
-  text = text
-    .replace(/\r/g,'')
-    .replace(/\u00A0/g,' ')
-    .replace(/[\u200B-\u200D\uFEFF]/g,'')
-    .trim();
-
-  // Gist ID: coba 32 hex utuh
+  // Gist ID (utuh atau rakit)
   let gistId = (text.match(/\b([a-f0-9]{32})\b/i) || [,''])[1] || '';
-
-  // Kalau gagal, gabungkan kelompok hex dan ambil 32 pertama
   if (!gistId) {
     let buf='', groups=[];
-    for (const ch of text) {
-      if (/[a-f0-9]/i.test(ch)) buf+=ch; else { if (buf) {groups.push(buf); buf='';} }
-    }
+    for (const ch of text){ if(/[a-f0-9]/i.test(ch)) buf+=ch; else { if(buf){groups.push(buf); buf='';} } }
     if (buf) groups.push(buf);
     for (const g of groups) if (g.length>=32){ gistId=g.slice(0,32); break; }
   }
 
-  // Token:
-  // 1) match ketat ghp_ + 36 alnum
+  // Token (hard cap ghp_ + 36) atau github_pat_
   let token = (text.match(/\b(ghp_[A-Za-z0-9]{36})\b/) || [,''])[1] || '';
-
-  // 2) fallback: ada ghp_ + alnum panjang → slice tepat 36
   if (!token) {
     const idx = text.search(/ghp_/);
     if (idx >= 0) {
-      const tail = text.slice(idx + 4).replace(/[^A-Za-z0-9]/g,'');
-      if (tail.length >= 36) token = 'ghp_' + tail.slice(0,36);
+      const tail = text.slice(idx+4).replace(/[^A-Za-z0-9]/g,'');
+      if (tail.length >= 36) token = 'ghp_'+tail.slice(0,36);
     }
   }
-
-  // 3) fallback lain: github_pat_… (biarkan alnum + underscore)
   if (!token) {
     const m = text.match(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/);
     if (m) token = m[0];
   }
-
   return { gistId, token };
 }
 
-/* ====== password → tarik dari Google Docs ====== */
+/* ====== password → ambil dari Google Docs ====== */
 async function unlockViaGoogleDoc(){
   const pass = (pwInput.value||'').trim();
   if (pass !== PASSWORD_CORRECT){ setStatus('Password salah','err'); setDot('err'); return; }
@@ -212,10 +201,8 @@ async function unlockViaGoogleDoc(){
     const res = await fetch(DOC_URL, { mode:'cors' });
     if(!res.ok) throw new Error('Fetch GDocs: '+res.status+' '+res.statusText);
     const raw = await res.text();
-
     const { gistId, token } = extractCreds(raw);
 
-    // Validasi akhir
     if (!/^[a-f0-9]{32}$/i.test(gistId))  throw new Error('Gist ID tidak valid');
     if (!/^ghp_[A-Za-z0-9]{36}$/.test(token) && !/^github_pat_[A-Za-z0-9_]{20,}$/.test(token))
       throw new Error('Token tidak valid');
@@ -229,9 +216,27 @@ async function unlockViaGoogleDoc(){
 }
 
 /* ====== hooks ====== */
-document.getElementById('pwOpen').addEventListener('click', unlockViaGoogleDoc);
-document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
-document.getElementById('pwClear').addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
+pwOpen.addEventListener('click', unlockViaGoogleDoc);
+pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
+pwClear.addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
+
+// tombol: Simpan & Muat Ulang
+btnNow.addEventListener('click', ()=>scheduleSave());
+btnLoad.addEventListener('click', async ()=>{
+  try{
+    isLoading = true;
+    setStatus('Memuat dari Gist…','warn'); setDot('warn');
+    const data = await gistLoad();
+    app().applyAllData(data);
+    lastJSON = jsonOf(app().collectAllData());
+    setStatus('Dimuat dari Gist','ok'); setDot('ok');
+    setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
+  }catch(e){
+    setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e));
+  }finally{
+    isLoading = false;
+  }
+});
 
 function hookChangeWatch(){
   try{
@@ -247,7 +252,7 @@ function hookChangeWatch(){
 /* ====== boot ====== */
 window.addEventListener('load', ()=>{
   const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); initialLoad(); }catch(_){ } },150);
-  body.style.display='none'; // start minimized
+  body.style.display='none'; // mulai dalam keadaan minimize
 });
 </script>
 </body>
