@@ -12,7 +12,7 @@
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
     #syncToggle{margin-left:auto;border:1px solid #d1d5db;border-radius:8px;padding:2px 8px;font-weight:700;background:#fff}
-    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:380px}
+    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:420px}
     #syncBody .row{margin:6px 0;color:#374151}
     #syncBody .small{font-size:12px;color:#6b7280}
     .ok{background:#10b981!important;border-color:#10b981!important}
@@ -23,6 +23,9 @@
     .btn.ghost{border-color:#d1d5db}
     #loginBox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     #pwInput{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit;flex:1;min-width:220px}
+
+    #pwChangeBox input{padding:8px;border:1px solid #d1d5db;border-radius:8px}
+    #pwChangeBox{display:none;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
   </style>
 </head>
 <body>
@@ -38,24 +41,44 @@
       <div class="row"><b>Status:</b> <span id="syncStatus">Perlu password</span></div>
       <div class="row small" id="syncMeta">—</div>
 
+      <!-- Gate awal (ambil token+gist dari Google Docs) -->
       <div id="loginBox" class="row">
         <input id="pwInput" type="password" placeholder="Password" autocomplete="current-password">
         <button id="pwOpen" class="btn primary" type="button">Buka</button>
         <button id="pwClear" class="btn ghost" type="button">Hapus Kredensial</button>
       </div>
 
+      <!-- Kontrol utama -->
       <div class="row" id="btnRow" style="display:none;gap:8px;flex-wrap:wrap">
         <button id="syncBtnNow" class="btn primary" type="button">Simpan ke Gist Sekarang</button>
         <button id="syncBtnLoad" class="btn" type="button">Muat Ulang dari Gist</button>
+        <button id="pwChange" class="btn" type="button">Ganti Password (cloud)</button>
+      </div>
+
+      <!-- Form ganti password cloud (butuh master) -->
+      <div id="pwChangeBox" class="row">
+        <div style="display:grid;gap:8px">
+          <div class="small">Ganti password cloud (tersimpan di Gist). Diperlukan <b>password master</b>.</div>
+          <input id="oldMaster" type="password" placeholder="Password master">
+          <input id="newPw1" type="password" placeholder="Password baru (cloud)">
+          <input id="newPw2" type="password" placeholder="Ulangi password baru">
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="pwChangeSave" class="btn primary" type="button">Simpan</button>
+            <button id="pwChangeCancel" class="btn ghost" type="button">Batal</button>
+          </div>
+          <div id="pwChangeMsg" class="small"></div>
+        </div>
       </div>
     </div>
   </div>
 
 <script>
 /* ====== KONFIG ====== */
-const PASSWORD_CORRECT = "inipassword12";
+const PASSWORD_CORRECT = "inipassword12"; // gate untuk ambil token dari GDocs (bukan cloud password)
 const DOC_URL = "https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub";
-const FILE_NAME = "absensi-n4-rasen.json";
+const FILE_NAME = "absensi-n4-rasen.json";       // data utama app
+const SETTINGS_FILE = "absensi-settings.json";    // menyimpan hash password cloud & master di Gist
+
 const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 
 /* ====== UI ====== */
@@ -64,7 +87,9 @@ const appFrame = $('#appframe');
 const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#syncToggle');
 const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
 const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen'), pwClear=$('#pwClear');
-const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad');
+const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad'), pwChangeBtn=$('#pwChange');
+const pwBox=$('#pwChangeBox'), oldMaster=$('#oldMaster'), newPw1=$('#newPw1'), newPw2=$('#newPw2'), pwSave=$('#pwChangeSave'), pwCancel=$('#pwChangeCancel'), pwMsg=$('#pwChangeMsg');
+
 let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
 head.addEventListener('click',()=>setExpanded(!expanded));
@@ -86,6 +111,13 @@ function app(){
   return w;
 }
 
+/* ====== util hash ====== */
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 /* ====== GitHub API ====== */
 async function gh(path, opts = {}) {
   const { token } = getCreds(); if (!token) throw new Error('TOKEN kosong');
@@ -105,11 +137,12 @@ async function gh(path, opts = {}) {
   }
   return res.json();
 }
+
+/* ====== Gist I/O: data utama ====== */
 async function gistLoad() {
   const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
   const out = await gh('/gists/' + id);
-  const file = out.files[FILE_NAME] ||
-               Object.values(out.files).find(f => /\.json$/i.test(f.filename));
+  const file = out.files[FILE_NAME] || Object.values(out.files).find(f => /\.json$/i.test(f.filename));
   if (!file) throw new Error('File JSON tidak ditemukan di Gist');
   if (file.content && typeof file.content === 'string') return JSON.parse(file.content);
   const res = await fetch(file.raw_url, { mode:'cors', headers:{ 'Authorization':'token '+getCreds().token } });
@@ -122,14 +155,31 @@ async function gistSave(data){
   await gh('/gists/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
 }
 
+/* ====== Gist I/O: settings cloud (password & master) ====== */
+async function settingsLoad(){
+  const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
+  const g = await gh('/gists/' + id);
+  let f = g.files[SETTINGS_FILE];
+  if (!f) return null;
+  if (f.content && typeof f.content === 'string') return JSON.parse(f.content);
+  const res = await fetch(f.raw_url, { mode:'cors', headers:{ 'Authorization':'token '+getCreds().token } });
+  if (!res.ok) throw new Error('Gagal fetch settings: '+res.status+' '+res.statusText);
+  return await res.json();
+}
+async function settingsSave(obj){
+  const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
+  const body = { files: { [SETTINGS_FILE]: { content: JSON.stringify(obj, null, 2) } } };
+  await gh('/gists/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+}
+
 /* ====== auto load/save (dengan guard) ====== */
 let lastJSON=''; 
 let saveTimer=null; 
-let isLoading=false;    // guard: jangan autosave saat loading
+let isLoading=false;
 
 function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
 function scheduleSave(){
-  if (isLoading) return;             // cegah save saat sedang load
+  if (isLoading) return;
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer=setTimeout(async ()=>{
     try{
@@ -143,12 +193,27 @@ function scheduleSave(){
   },1200);
 }
 
+/* ====== load awal + ensure settings ====== */
+let cloudSettings = null; // { loginPwHash, masterPwHash, version }
+async function ensureSettings(){
+  cloudSettings = await settingsLoad();
+  if (!cloudSettings) {
+    // default pertama kali
+    cloudSettings = {
+      version: 1,
+      loginPwHash: await sha256Hex('inipassword12'),
+      masterPwHash: await sha256Hex('rasenmaster12')
+    };
+    await settingsSave(cloudSettings);
+  }
+}
 async function initialLoad(){
   const {id,token}=getCreds();
   if(!id || !token){ setStatus('Perlu password','err'); setDot('err'); return; }
   try{
-    isLoading = true;                            // start guard
+    isLoading = true;
     setStatus('Memuat dari Gist…','warn'); setDot('warn');
+    await ensureSettings();                          // pastikan settings cloud ada
     const data=await gistLoad(); app().applyAllData(data);
     lastJSON=jsonOf(app().collectAllData());
     setStatus('Dimuat dari Gist','ok'); setDot('ok');
@@ -156,18 +221,16 @@ async function initialLoad(){
     btnRow.style.display='block'; loginBox.style.display='none';
   }catch(e){
     setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e));
-  } finally {
-    isLoading = false;                           // end guard
-  }
+  } finally { isLoading = false; }
 }
 
-/* ====== parser kredensial (rekonstruksi 32 hex & potong ghp_) ====== */
+/* ====== parser kredensial dari Google Docs ====== */
 function extractCreds(raw) {
   let text = raw;
   if (/^\s*</.test(text)) { const tmp=document.createElement('div'); tmp.innerHTML=text; text=tmp.textContent||''; }
   text = text.replace(/\r/g,'').replace(/\u00A0/g,' ').replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
 
-  // Gist ID (utuh atau rakit)
+  // Gist ID
   let gistId = (text.match(/\b([a-f0-9]{32})\b/i) || [,''])[1] || '';
   if (!gistId) {
     let buf='', groups=[];
@@ -175,8 +238,7 @@ function extractCreds(raw) {
     if (buf) groups.push(buf);
     for (const g of groups) if (g.length>=32){ gistId=g.slice(0,32); break; }
   }
-
-  // Token (hard cap ghp_ + 36) atau github_pat_
+  // Token
   let token = (text.match(/\b(ghp_[A-Za-z0-9]{36})\b/) || [,''])[1] || '';
   if (!token) {
     const idx = text.search(/ghp_/);
@@ -192,7 +254,7 @@ function extractCreds(raw) {
   return { gistId, token };
 }
 
-/* ====== password → ambil dari Google Docs ====== */
+/* ====== gate awal (ambil kredensial) ====== */
 async function unlockViaGoogleDoc(){
   const pass = (pwInput.value||'').trim();
   if (pass !== PASSWORD_CORRECT){ setStatus('Password salah','err'); setDot('err'); return; }
@@ -215,12 +277,12 @@ async function unlockViaGoogleDoc(){
   }
 }
 
-/* ====== hooks ====== */
+/* ====== tombol ====== */
 pwOpen.addEventListener('click', unlockViaGoogleDoc);
 pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
 pwClear.addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
 
-// tombol: Simpan & Muat Ulang
+// Simpan & Muat Ulang
 btnNow.addEventListener('click', ()=>scheduleSave());
 btnLoad.addEventListener('click', async ()=>{
   try{
@@ -233,11 +295,41 @@ btnLoad.addEventListener('click', async ()=>{
     setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
   }catch(e){
     setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e));
-  }finally{
-    isLoading = false;
-  }
+  }finally{ isLoading = false; }
 });
 
+// Ganti Password (cloud) — butuh master
+pwChangeBtn.addEventListener('click', ()=>{
+  pwBox.style.display = pwBox.style.display === 'none' ? 'block' : 'none';
+  pwMsg.textContent = ''; oldMaster.value = newPw1.value = newPw2.value = '';
+});
+pwCancel.addEventListener('click', ()=>{
+  pwBox.style.display = 'none'; pwMsg.textContent = '';
+});
+pwSave.addEventListener('click', async ()=>{
+  try{
+    if (!cloudSettings) await ensureSettings();
+    const m = (oldMaster.value||'').trim();
+    const a = (newPw1.value||'').trim();
+    const b = (newPw2.value||'').trim();
+
+    if (!m){ pwMsg.textContent='Isi password master.'; return; }
+    if (!a || a.length<6){ pwMsg.textContent='Password baru minimal 6 karakter.'; return; }
+    if (a!==b){ pwMsg.textContent='Password baru tidak sama.'; return; }
+
+    const mhash = await sha256Hex(m);
+    if (mhash !== cloudSettings.masterPwHash){ pwMsg.textContent='Password master salah.'; return; }
+
+    cloudSettings.loginPwHash = await sha256Hex(a);
+    await settingsSave(cloudSettings);
+
+    pwBox.style.display='none';
+    setStatus('Password cloud diperbarui','ok'); setDot('ok');
+  }catch(e){
+    pwMsg.textContent='Gagal menyimpan: '+(e.message||e);
+  }
+});
+/* ====== end ====== */
 function hookChangeWatch(){
   try{
     const doc=appFrame.contentDocument||appFrame.contentWindow.document;
@@ -248,11 +340,9 @@ function hookChangeWatch(){
     mo.observe(doc.body,{subtree:true,childList:true,attributes:true,characterData:true});
   }catch(e){}
 }
-
-/* ====== boot ====== */
 window.addEventListener('load', ()=>{
   const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); initialLoad(); }catch(_){ } },150);
-  body.style.display='none'; // mulai dalam keadaan minimize
+  body.style.display='none';
 });
 </script>
 </body>
