@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Absensi N4 Rasen – Portal</title>
+  <title>Absensi N4 Rasen</title>
   <style>
     html,body{height:100%;margin:0}
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
 
-    /* Sync badge (minimizable) */
+    /* Sync badge */
     #syncBadge{
       position:fixed; right:14px; bottom:14px; z-index:999999;
       background:#ffffffee; border:1px solid #d1d5db; border-radius:12px;
@@ -20,21 +20,28 @@
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
     #syncToggle{margin-left:auto;border:1px solid #d1d5db;border-radius:8px;padding:2px 8px;font-weight:700;background:#fff}
-    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:320px}
-    #syncBody .row{margin:4px 0;color:#374151}
+    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:340px}
+    #syncBody .row{margin:6px 0;color:#374151}
     #syncBody .small{font-size:12px;color:#6b7280}
     #syncBtnNow{border:1px solid #2563eb;background:#2563eb;color:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
     #syncBtnLoad{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;margin-left:6px}
     .ok{background:#10b981!important;border-color:#10b981!important}
     .warn{background:#f59e0b!important;border-color:#f59e0b!important}
     .err{background:#ef4444!important;border-color:#ef4444!important}
+
+    /* Mini form (muncul kalau kredensial kosong) */
+    .cfg{display:grid;grid-template-columns:1fr;gap:6px;margin-top:4px}
+    .cfg input{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit}
+    .cfg button{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
+    .cfg .save{border-color:#2563eb;background:#2563eb;color:#fff}
+    .cfg .clear{border-color:#ef4444;color:#ef4444;background:#fff}
   </style>
 </head>
 <body>
-  <!-- App lama tetap dipakai di iframe -->
+  <!-- App utama -->
   <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
 
-  <!-- Badge sinkronisasi (minimizable) -->
+  <!-- Badge sinkronisasi (minimize/expand) -->
   <div id="syncBadge" aria-live="polite">
     <div id="syncHead" title="Klik untuk expand/minimize">
       <span id="syncDot" aria-hidden="true"></span>
@@ -44,7 +51,19 @@
     <div id="syncBody">
       <div class="row"><b>Status:</b> <span id="syncStatus">Menunggu app…</span></div>
       <div class="row small" id="syncMeta">—</div>
-      <div class="row">
+
+      <!-- muncul hanya bila kredensial belum ada -->
+      <div id="cfgBox" class="cfg" style="display:none">
+        <input id="cfgGist" placeholder="Gist ID (mis. 2d2f...)" />
+        <input id="cfgTok" placeholder="GitHub PAT (scope: gist)" />
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="save" id="cfgSave" type="button">Simpan & Pakai</button>
+          <button class="clear" id="cfgClear" type="button">Hapus Kredensial</button>
+        </div>
+        <div class="small">Tips: bisa juga pakai URL <code>?gist=ID&token=PAT</code> (akan otomatis disimpan).</div>
+      </div>
+
+      <div class="row" id="btnRow">
         <button id="syncBtnNow" type="button">Simpan ke Gist sekarang</button>
         <button id="syncBtnLoad" type="button">Muat ulang dari Gist</button>
       </div>
@@ -52,56 +71,90 @@
   </div>
 
 <script>
-/** ===================  KONFIGURASI GIST  ===================
- *  Isi dua konstanta di bawah ini supaya tidak perlu input lagi di perangkat mana pun.
- *  GIST_TOKEN : GitHub PAT (scope: gist)
- *  GIST_ID    : ID Gist yang berisi file JSON absensi (misal: "2d2fd4d16a1036fdb26e09bd7c...")
- *  FILE_NAME  : Nama file di dalam gist tersebut.
+/** ========= CARA 1 (opsional): hard-code di sini =========
+ *  Isi kalau mau langsung lintas perangkat tanpa isi form.
+ *  (Bisa ditimpa oleh URL param / localStorage.)
  */
-const GIST_TOKEN = "REPLACE_WITH_YOUR_PAT";      // <-- ISI DI SINI
-const GIST_ID    = "REPLACE_WITH_YOUR_GIST_ID";  // <-- ISI DI SINI
-const FILE_NAME  = "absensi-n4-rasen.json";
+const HARDCODED = {
+  gistId:  "",         // contoh: "2d2fd4d16a1036fdb26e09bd7cxxxxxx"
+  token:   ""          // contoh: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+};
+/** ========= CARA 2: URL parameter =========
+ *  ?gist=ID&token=PAT  → otomatis disimpan ke localStorage.
+ */
 
-/** ===================  UTIL  =================== */
-const $ = sel => document.querySelector(sel);
+/** ========= KONSTAN NAMA FILE DI GIST ========= */
+const FILE_NAME = "absensi-n4-rasen.json";
+
+/** ========= UI helpers ========= */
+const $ = s=>document.querySelector(s);
 const appFrame = $('#appframe');
-const badge = $('#syncBadge'), head = $('#syncHead'), body = $('#syncBody'), dot = $('#syncDot');
+const head = $('#syncHead'), body = $('#syncBody'), dot = $('#syncDot'), togg = $('#syncToggle');
 const statusEl = $('#syncStatus'), metaEl = $('#syncMeta');
-const btnNow = $('#syncBtnNow'), btnLoad = $('#syncBtnLoad'), btnToggle = $('#syncToggle');
+const btnNow = $('#syncBtnNow'), btnLoad = $('#syncBtnLoad');
+const cfgBox = $('#cfgBox'), cfgGist = $('#cfgGist'), cfgTok = $('#cfgTok');
+const cfgSave = $('#cfgSave'), cfgClear = $('#cfgClear');
 
-let expanded = false;
-function setExpanded(v){
-  expanded = v;
-  body.style.display = v ? 'block' : 'none';
-  btnToggle.textContent = v ? '▾' : '▴';
-}
+let expanded=false;
+function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
-
 head.addEventListener('click', ()=> setExpanded(!expanded));
+function setDot(cls){ dot.classList.remove('ok','warn','err'); if(cls) dot.classList.add(cls); }
+function setStatus(t){ statusEl.textContent=t; }
+function setMeta(t){ metaEl.textContent=t; }
 
-function setDot(cls){
-  dot.classList.remove('ok','warn','err');
-  if (cls) dot.classList.add(cls);
+/** ========= kredensial ========= */
+const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
+function getCreds(){
+  const url = new URL(location.href);
+  const urlG = url.searchParams.get('gist');
+  const urlT = url.searchParams.get('token');
+  if(urlG && urlT){
+    localStorage.setItem(LS_ID, urlG.trim());
+    localStorage.setItem(LS_TOK, urlT.trim());
+    // bersihkan param biar nggak ke-bookmark terbuka
+    url.searchParams.delete('gist'); url.searchParams.delete('token');
+    history.replaceState({}, '', url.toString());
+  }
+  const id = (localStorage.getItem(LS_ID) || HARDCODED.gistId || '').trim();
+  const tok = (localStorage.getItem(LS_TOK) || HARDCODED.token  || '').trim();
+  return {id, token: tok};
 }
-function setStatus(text){ statusEl.textContent = text; }
-function setMeta(text){ metaEl.textContent = text; }
+function ensureCredsUI(){
+  const {id, token} = getCreds();
+  const missing = !id || !token;
+  cfgBox.style.display = missing ? 'block' : 'none';
+  $('#btnRow').style.display = missing ? 'none' : 'block';
+  if(missing){ setStatus('Kredensial belum diisi'); setDot('err'); }
+}
+cfgSave.addEventListener('click', ()=>{
+  const id = cfgGist.value.trim(), tok = cfgTok.value.trim();
+  if(!id || !tok){ alert('Isi Gist ID dan Token.'); return; }
+  localStorage.setItem(LS_ID, id); localStorage.setItem(LS_TOK, tok);
+  ensureCredsUI();
+  initialLoad(); // coba langsung load
+});
+cfgClear.addEventListener('click', ()=>{
+  localStorage.removeItem(LS_ID); localStorage.removeItem(LS_TOK);
+  ensureCredsUI();
+});
 
-/** ===================  AKSES APP  =================== */
-function app() {
+/** ========= akses app.html di iframe ========= */
+function app(){
   const w = appFrame.contentWindow;
   if (!w) throw new Error('Iframe belum siap');
   if (typeof w.collectAllData !== 'function' || typeof w.applyAllData !== 'function') {
-    throw new Error('Fungsi collectAllData/applyAllData belum tersedia');
+    throw new Error('Fungsi collectAllData/applyAllData belum ada');
   }
   return w;
 }
 
-/** ===================  GIST API  =================== */
+/** ========= GitHub Gist API ========= */
 async function gh(path, opts={}){
-  if(!GIST_TOKEN || GIST_TOKEN.startsWith('REPLACE_')) throw new Error('GIST_TOKEN belum diisi');
+  const {token} = getCreds(); if(!token) throw new Error('TOKEN kosong');
   const headers = Object.assign({
     'Accept':'application/vnd.github+json',
-    'Authorization':'Bearer '+GIST_TOKEN
+    'Authorization':'Bearer '+token
   }, opts.headers||{});
   const res = await fetch('https://api.github.com'+path, { ...opts, headers });
   if(!res.ok){
@@ -111,23 +164,23 @@ async function gh(path, opts={}){
   return res.json();
 }
 async function gistLoad(){
-  if(!GIST_ID || GIST_ID.startsWith('REPLACE_')) throw new Error('GIST_ID belum diisi');
-  const out = await gh('/gists/'+GIST_ID);
+  const {id} = getCreds(); if(!id) throw new Error('GIST_ID kosong');
+  const out = await gh('/gists/'+id);
   const file = out.files[FILE_NAME] || Object.values(out.files).find(f=>/\.json$/i.test(f.filename));
   if(!file) throw new Error('File JSON tidak ditemukan di Gist');
   const resp = await fetch(file.raw_url);
   return await resp.json();
 }
 async function gistSave(data){
-  if(!GIST_ID || GIST_ID.startsWith('REPLACE_')) throw new Error('GIST_ID belum diisi');
+  const {id} = getCreds(); if(!id) throw new Error('GIST_ID kosong');
   const body = { files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } } };
-  await gh('/gists/'+GIST_ID, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  await gh('/gists/'+id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
 }
 
-/** ===================  AUTO LOAD & AUTO SAVE  =================== */
+/** ========= auto load & save ========= */
 let lastJSON = '';
-let saveTimer = null;
-function jsonOf(d){ try{return JSON.stringify(d);}catch{ return ''; } }
+let saveTimer=null;
+function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
 function scheduleSave(){
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
@@ -141,13 +194,13 @@ function scheduleSave(){
         setStatus('Tersimpan'); setDot('ok');
         setMeta('Terakhir simpan: '+new Date().toLocaleString('id-ID'));
       }
-    }catch(e){
-      setStatus('Gagal simpan'); setDot('err'); setMeta(e.message||e);
-    }
+    }catch(e){ setStatus('Gagal simpan'); setDot('err'); setMeta(e.message||e); }
   }, 1200);
 }
 
 async function initialLoad(){
+  const {id, token} = getCreds();
+  if(!id || !token){ ensureCredsUI(); return; }
   try{
     setStatus('Memuat dari Gist…'); setDot('warn');
     const data = await gistLoad();
@@ -155,13 +208,34 @@ async function initialLoad(){
     lastJSON = jsonOf(app().collectAllData());
     setStatus('Dimuat dari Gist'); setDot('ok');
     setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
-  }catch(e){
-    setStatus('Lewati muat otomatis'); setDot('err'); setMeta(e.message||e);
-  }
+  }catch(e){ setStatus('Gagal muat'); setDot('err'); setMeta(e.message||e); }
 }
 
-/** Pasang listener perubahan di dalam iframe (input/select/change),
- *  plus observer DOM untuk jaga-jaga */
+/** ========= tombol manual ========= */
+btnNow.addEventListener('click', ()=> scheduleSave());
+btnLoad.addEventListener('click', async ()=>{
+  try{
+    const data = await gistLoad();
+    app().applyAllData(data);
+    lastJSON = jsonOf(app().collectAllData());
+    setStatus('Dimuat dari Gist'); setDot('ok');
+    setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
+  }catch(e){ setStatus('Gagal muat'); setDot('err'); setMeta(e.message||e); }
+});
+
+/** ========= boot ========= */
+window.addEventListener('load', ()=>{
+  // tunggu fungsi di app.html siap
+  const wait = setInterval(()=>{
+    try{ app(); clearInterval(wait); initialLoad(); hookChangeWatch(); }
+    catch(_){}
+  }, 150);
+
+  // minimized by default
+  setExpanded(false);
+  ensureCredsUI();
+});
+
 function hookChangeWatch(){
   try{
     const doc = appFrame.contentDocument || appFrame.contentWindow.document;
@@ -171,42 +245,10 @@ function hookChangeWatch(){
       });
     };
     rearm();
-    // observe body changes
     const mo = new MutationObserver(()=> scheduleSave());
     mo.observe(doc.body, { subtree:true, childList:true, attributes:true, characterData:true });
-  }catch(e){
-    // silent
-  }
+  }catch(e){}
 }
-
-/** ===================  KONTROL MANUAL  =================== */
-btnNow.addEventListener('click', ()=> scheduleSave());
-btnLoad.addEventListener('click', async ()=>{
-  try{
-    const data = await gistLoad();
-    app().applyAllData(data);
-    lastJSON = jsonOf(app().collectAllData());
-    setStatus('Dimuat dari Gist'); setDot('ok');
-    setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
-  }catch(e){
-    setStatus('Gagal muat'); setDot('err'); setMeta(e.message||e);
-  }
-});
-
-/** ===================  BOOT  =================== */
-window.addEventListener('load', ()=>{
-  // ketika app.html sudah siap, lakukan initialLoad dan pasang watcher
-  const wait = setInterval(()=>{
-    try{
-      app(); // akan throw kalau belum siap
-      clearInterval(wait);
-      initialLoad().then(()=> hookChangeWatch());
-    }catch(_){}
-  }, 150);
-
-  // default minimized agar tidak nutupi konten
-  setExpanded(false);
-});
 </script>
 </body>
 </html>
