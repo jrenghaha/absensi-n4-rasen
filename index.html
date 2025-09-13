@@ -4,10 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Absensi</title>
+  <!-- Favicon sederhana (clipboard + centang) -->
   <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <style>
     html,body{height:100%;margin:0}
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
+    /* Badge */
     #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;color:#111827;overflow:hidden;min-width:42px}
     #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
@@ -29,8 +31,10 @@
   </style>
 </head>
 <body>
+  <!-- App utama -->
   <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
 
+  <!-- Badge Sync -->
   <div id="syncBadge" aria-live="polite">
     <div id="syncHead" title="Klik untuk expand/minimize">
       <span id="syncDot" aria-hidden="true"></span>
@@ -43,7 +47,7 @@
 
       <div id="pwBox" class="cfg">
         <input id="pwInput" type="password" autocomplete="current-password" placeholder="Masukkan password sinkronisasi">
-        <div class="small">Password ini akan membuka kredensial untuk auto-sync Gist lintas perangkat.</div>
+        <div class="small">Password ini membuka kredensial untuk auto-sync Gist lintas perangkat.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="save" id="pwUnlock" type="button">Buka & Pakai</button>
           <button class="clear" id="pwForget" type="button">Hapus Kredensial Lokal</button>
@@ -58,11 +62,13 @@
   </div>
 
 <script>
+/* ====== KONFIG ====== */
 const PASSWORD_CORRECT = "inipassword12";
 const FIXED_GIST_ID = "2d2fd4d16a1036fdb26e09bd7d3ea79b";
 const FIXED_TOKEN  = "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";
 const FILE_NAME = "absensi-n4-rasen.json";
 
+/* ====== UI ====== */
 const $ = s=>document.querySelector(s);
 const appFrame = $('#appframe');
 const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#syncToggle');
@@ -77,10 +83,12 @@ function setDot(c){ dot.classList.remove('ok','warn','err'); if(c) dot.classList
 function setStatus(t){ statusEl.textContent=t; }
 function setMeta(t){ metaEl.textContent=t; }
 
+/* ====== kredensial lokal ====== */
 const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 function getCreds(){ return { id: localStorage.getItem(LS_ID)||'', token: localStorage.getItem(LS_TOK)||'' }; }
 function saveCreds(id, token){ localStorage.setItem(LS_ID, id); localStorage.setItem(LS_TOK, token); }
 
+/* ====== akses app.html ====== */
 function app(){
   const w = appFrame.contentWindow;
   if(!w) throw new Error('Iframe belum siap');
@@ -89,27 +97,53 @@ function app(){
   return w;
 }
 
-async function gh(path, opts={}){
-  const {token} = getCreds(); if(!token) throw new Error('TOKEN kosong');
-  const headers=Object.assign({'Accept':'application/vnd.github+json','Authorization':'Bearer '+token},opts.headers||{});
-  const res = await fetch('https://api.github.com'+path,{...opts,headers});
-  if(!res.ok){ const t=await res.text().catch(()=>res.statusText); throw new Error('GitHub API '+res.status+': '+t); }
+/* ====== GitHub API helper (PATCHED) ====== */
+// gunakan skema 'token' dan header versi API agar preflight/CORS aman
+async function gh(path, opts = {}) {
+  const { token } = getCreds(); if (!token) throw new Error('TOKEN kosong');
+  const headers = Object.assign({
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Authorization': 'token ' + token
+  }, opts.headers || {});
+  const res = await fetch('https://api.github.com' + path, { ...opts, headers, mode: 'cors' });
+  if (!res.ok) {
+    const t = await res.text().catch(() => res.statusText);
+    throw new Error('GitHub API ' + res.status + ': ' + t);
+  }
   return res.json();
 }
-async function gistLoad(){
-  const {id}=getCreds(); if(!id) throw new Error('GIST_ID kosong');
-  const out=await gh('/gists/'+id);
-  const file=out.files[FILE_NAME] || Object.values(out.files).find(f=>/\.json$/i.test(f.filename));
-  if(!file) throw new Error('File JSON tidak ditemukan di Gist');
-  const resp=await fetch(file.raw_url);
-  return await resp.json();
-}
-async function gistSave(data){
-  const {id}=getCreds(); if(!id) throw new Error('GIST_ID kosong');
-  const body={ files: { [FILE_NAME]: { content: JSON.stringify(data,null,2) } } };
-  await gh('/gists/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+
+// ambil konten langsung dari field "content"; fallback raw_url dengan auth
+async function gistLoad() {
+  const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
+  const out = await gh('/gists/' + id);
+  const file = out.files[FILE_NAME] ||
+               Object.values(out.files).find(f => /\.json$/i.test(f.filename));
+  if (!file) throw new Error('File JSON tidak ditemukan di Gist');
+
+  if (file.content && typeof file.content === 'string') {
+    return JSON.parse(file.content);
+  }
+  const res = await fetch(file.raw_url, {
+    mode: 'cors',
+    headers: { 'Authorization': 'token ' + getCreds().token }
+  });
+  if (!res.ok) throw new Error('Gagal fetch raw_url: ' + res.status + ' ' + res.statusText);
+  return await res.json();
 }
 
+async function gistSave(data){
+  const { id } = getCreds(); if (!id) throw new Error('GIST_ID kosong');
+  const body = { files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } } };
+  await gh('/gists/' + id, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+}
+
+/* ====== auto load & save ====== */
 let lastJSON=''; let saveTimer=null;
 function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
 function scheduleSave(){
@@ -122,7 +156,7 @@ function scheduleSave(){
         await gistSave(d); lastJSON=j;
         setStatus('Tersimpan'); setDot('ok'); setMeta('Terakhir simpan: '+new Date().toLocaleString('id-ID'));
       }
-    }catch(e){ setStatus('Gagal simpan'); setDot('err'); setMeta(String(e).slice(0,200)); }
+    }catch(e){ setStatus('Gagal simpan'); setDot('err'); setMeta((e&&e.stack)?e.stack:String(e)); }
   },1200);
 }
 async function initialLoad(){
@@ -134,19 +168,23 @@ async function initialLoad(){
     lastJSON=jsonOf(app().collectAllData());
     setStatus('Dimuat dari Gist'); setDot('ok'); setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
     btnRow.style.display='block'; pwBox.style.display='none';
-  }catch(e){ setStatus('Gagal muat'); setDot('err'); setMeta(String(e).slice(0,200)); }
+  }catch(e){ setStatus('Gagal muat'); setDot('err'); setMeta((e&&e.stack)?e.stack:String(e)); }
 }
 
+/* ====== password events ====== */
 pwForget.addEventListener('click',()=>{ localStorage.removeItem(LS_ID); localStorage.removeItem(LS_TOK); setStatus('Kredensial lokal dihapus'); setDot('warn'); btnRow.style.display='none'; });
-pwUnlock.addEventListener('click', ()=>{
+function unlock(){
   if ((pwInput.value||'') !== PASSWORD_CORRECT){
     setStatus('Password salah'); setDot('err'); return;
   }
   saveCreds(FIXED_GIST_ID, FIXED_TOKEN);
   setStatus('Kredensial dimuat'); setDot('ok'); btnRow.style.display='block'; pwBox.style.display='none';
   initialLoad();
-});
+}
+pwUnlock.addEventListener('click', unlock);
+pwInput.addEventListener('keydown', e=>{ if(e.key==="Enter"){ unlock(); } });
 
+/* ====== observe perubahan di iframe ====== */
 function hookChangeWatch(){
   try{
     const doc=appFrame.contentDocument||appFrame.contentWindow.document;
@@ -158,8 +196,10 @@ function hookChangeWatch(){
   }catch(e){}
 }
 
+/* ====== boot ====== */
 window.addEventListener('load', ()=>{
   const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); initialLoad(); }catch(_){ } },150);
+  // default minimize agar tidak mengganggu
   body.style.display='none';
 });
 </script>
