@@ -4,13 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Absensi</title>
-  <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <style>
     html,body{height:100%;margin:0}
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
-
-    /* Badge Sync */
-    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;color:#111827;overflow:hidden;min-width:42px}
+    #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;color:#111827;overflow:hidden;min-width:42px}
     #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
@@ -24,8 +21,6 @@
     .btn{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
     .btn.primary{border-color:#2563eb;background:#2563eb;color:#fff}
     .btn.ghost{border-color:#d1d5db}
-
-    /* Login */
     #loginBox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     #pwInput{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit;flex:1;min-width:220px}
   </style>
@@ -59,11 +54,8 @@
 <script>
 /* ====== KONFIG ====== */
 const PASSWORD_CORRECT = "inipassword12";
-// Link Google Docs Publish-to-Web punyamu:
 const DOC_URL = "https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub";
-// Nama file JSON di dalam Gist:
 const FILE_NAME = "absensi-n4-rasen.json";
-
 const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 
 /* ====== UI ====== */
@@ -73,7 +65,6 @@ const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#sync
 const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
 const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen'), pwClear=$('#pwClear');
 const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad');
-
 let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
 head.addEventListener('click',()=>setExpanded(!expanded));
@@ -159,11 +150,11 @@ async function initialLoad(){
   }catch(e){ setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e)); }
 }
 
-/* ====== parser kredensial (rekonstruksi 32 hex & potong ghp_) ====== */
+/* ====== PARSER: rakit 32 hex & potong ghp_ ke 36 ====== */
 function extractCreds(raw) {
   let text = raw;
 
-  // Ambil textContent jika HTML (Publish to Web)
+  // HTML → textContent jika perlu
   if (/^\s*</.test(text)) {
     const tmp = document.createElement('div');
     tmp.innerHTML = text;
@@ -180,7 +171,7 @@ function extractCreds(raw) {
   // Gist ID: coba 32 hex utuh
   let gistId = (text.match(/\b([a-f0-9]{32})\b/i) || [,''])[1] || '';
 
-  // Jika gagal, gabungkan kelompok hex dan ambil 32 pertama
+  // Kalau gagal, gabungkan kelompok hex dan ambil 32 pertama
   if (!gistId) {
     let buf='', groups=[];
     for (const ch of text) {
@@ -191,14 +182,19 @@ function extractCreds(raw) {
   }
 
   // Token:
-  // utamakan ghp_ + 36 alnum (format PAT lama: 36 char)
-  let token = '';
-  const ghpIdx = text.search(/ghp_/i);
-  if (ghpIdx >= 0) {
-    const tail = text.slice(ghpIdx + 4).replace(/[^A-Za-z0-9]/g, '');
-    if (tail.length >= 36) token = 'ghp_' + tail.slice(0,36);
+  // 1) match ketat ghp_ + 36 alnum
+  let token = (text.match(/\b(ghp_[A-Za-z0-9]{36})\b/) || [,''])[1] || '';
+
+  // 2) fallback: ada ghp_ + alnum panjang → slice tepat 36
+  if (!token) {
+    const idx = text.search(/ghp_/);
+    if (idx >= 0) {
+      const tail = text.slice(idx + 4).replace(/[^A-Za-z0-9]/g,'');
+      if (tail.length >= 36) token = 'ghp_' + tail.slice(0,36);
+    }
   }
-  // fallback: github_pat_ (biarkan alnum + underscore)
+
+  // 3) fallback lain: github_pat_… (biarkan alnum + underscore)
   if (!token) {
     const m = text.match(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/);
     if (m) token = m[0];
@@ -207,7 +203,7 @@ function extractCreds(raw) {
   return { gistId, token };
 }
 
-/* ====== password → ambil dari Google Docs ====== */
+/* ====== password → tarik dari Google Docs ====== */
 async function unlockViaGoogleDoc(){
   const pass = (pwInput.value||'').trim();
   if (pass !== PASSWORD_CORRECT){ setStatus('Password salah','err'); setDot('err'); return; }
@@ -216,6 +212,7 @@ async function unlockViaGoogleDoc(){
     const res = await fetch(DOC_URL, { mode:'cors' });
     if(!res.ok) throw new Error('Fetch GDocs: '+res.status+' '+res.statusText);
     const raw = await res.text();
+
     const { gistId, token } = extractCreds(raw);
 
     // Validasi akhir
@@ -232,9 +229,9 @@ async function unlockViaGoogleDoc(){
 }
 
 /* ====== hooks ====== */
-pwOpen.addEventListener('click', unlockViaGoogleDoc);
-pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
-pwClear.addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
+document.getElementById('pwOpen').addEventListener('click', unlockViaGoogleDoc);
+document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
+document.getElementById('pwClear').addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
 
 function hookChangeWatch(){
   try{
