@@ -7,185 +7,206 @@
   <style>
     html,body{height:100%;margin:0}
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
-    .toolbar{position:fixed;right:12px;top:12px;z-index:999999;background:#ffffffee;border:1px solid #dbe0e6;border-radius:14px;padding:10px 12px;box-shadow:0 6px 30px rgba(0,0,0,.12);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .toolbar input{height:32px;padding:0 10px;border:1px solid #cbd5e1;border-radius:10px}
-    .toolbar button{height:32px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;padding:0 10px}
-    .toolbar button:hover{background:#f3f5f7}
-    .tag{font-size:12px;color:#64748b;padding:0 6px}
-    @media (max-width:680px){.toolbar{left:12px;right:12px}}
+
+    /* Sync badge (minimizable) */
+    #syncBadge{
+      position:fixed; right:14px; bottom:14px; z-index:999999;
+      background:#ffffffee; border:1px solid #d1d5db; border-radius:12px;
+      box-shadow:0 8px 30px rgba(0,0,0,.12);
+      font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;
+      color:#111827; overflow:hidden; min-width:42px;
+    }
+    #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
+    #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
+    #syncTitle{font-weight:600}
+    #syncToggle{margin-left:auto;border:1px solid #d1d5db;border-radius:8px;padding:2px 8px;font-weight:700;background:#fff}
+    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:320px}
+    #syncBody .row{margin:4px 0;color:#374151}
+    #syncBody .small{font-size:12px;color:#6b7280}
+    #syncBtnNow{border:1px solid #2563eb;background:#2563eb;color:#fff;border-radius:8px;padding:6px 10px;font-weight:600}
+    #syncBtnLoad{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;margin-left:6px}
+    .ok{background:#10b981!important;border-color:#10b981!important}
+    .warn{background:#f59e0b!important;border-color:#f59e0b!important}
+    .err{background:#ef4444!important;border-color:#ef4444!important}
   </style>
 </head>
 <body>
-  <!-- NOTE: app.html adalah file absensi lama -->
+  <!-- App lama tetap dipakai di iframe -->
   <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
 
-  <div class="toolbar">
-    <span class="tag">Local</span>
-    <button id="btnSaveLocal">Simpan ke Perangkat</button>
-    <button id="btnLoadLocal">Muat dari Perangkat</button>
-
-    <span class="tag">Gist</span>
-    <input id="gistToken" placeholder="GitHub Token (PAT)" style="width:230px" />
-    <input id="gistId" placeholder="Gist ID (optional)" style="width:180px" />
-    <button id="btnBackupGist">Backup ke Gist</button>
-    <button id="btnRestoreGist">Pulihkan dari Gist</button>
-
-    <span class="tag">Firebase</span>
-    <input id="classKey" placeholder="Kelas Key (opsional)" style="width:180px" />
-    <button id="fbLogin">Masuk Google</button>
-    <button id="fbLogout" style="display:none;">Keluar</button>
-    <button id="fbSave">Simpan ke Cloud</button>
-    <button id="fbLoad">Muat dari Cloud</button>
+  <!-- Badge sinkronisasi (minimizable) -->
+  <div id="syncBadge" aria-live="polite">
+    <div id="syncHead" title="Klik untuk expand/minimize">
+      <span id="syncDot" aria-hidden="true"></span>
+      <span id="syncTitle">Sync</span>
+      <button id="syncToggle" type="button">▴</button>
+    </div>
+    <div id="syncBody">
+      <div class="row"><b>Status:</b> <span id="syncStatus">Menunggu app…</span></div>
+      <div class="row small" id="syncMeta">—</div>
+      <div class="row">
+        <button id="syncBtnNow" type="button">Simpan ke Gist sekarang</button>
+        <button id="syncBtnLoad" type="button">Muat ulang dari Gist</button>
+      </div>
+    </div>
   </div>
 
-  <script>
-  function cw(){ const f=document.getElementById('appframe'); return f && f.contentWindow; }
-  function ensureReady(){
-    const c = cw();
-    if(!c) throw new Error('Iframe belum siap.');
-    if(typeof c.collectAllData!=='function' || typeof c.applyAllData!=='function'){
-      throw new Error('Fungsi collectAllData/applyAllData belum siap di app.');
-    }
-    return c;
+<script>
+/** ===================  KONFIGURASI GIST  ===================
+ *  Isi dua konstanta di bawah ini supaya tidak perlu input lagi di perangkat mana pun.
+ *  GIST_TOKEN : GitHub PAT (scope: gist)
+ *  GIST_ID    : ID Gist yang berisi file JSON absensi (misal: "2d2fd4d16a1036fdb26e09bd7c...")
+ *  FILE_NAME  : Nama file di dalam gist tersebut.
+ */
+const GIST_TOKEN = "REPLACE_WITH_YOUR_PAT";      // <-- ISI DI SINI
+const GIST_ID    = "REPLACE_WITH_YOUR_GIST_ID";  // <-- ISI DI SINI
+const FILE_NAME  = "absensi-n4-rasen.json";
+
+/** ===================  UTIL  =================== */
+const $ = sel => document.querySelector(sel);
+const appFrame = $('#appframe');
+const badge = $('#syncBadge'), head = $('#syncHead'), body = $('#syncBody'), dot = $('#syncDot');
+const statusEl = $('#syncStatus'), metaEl = $('#syncMeta');
+const btnNow = $('#syncBtnNow'), btnLoad = $('#syncBtnLoad'), btnToggle = $('#syncToggle');
+
+let expanded = false;
+function setExpanded(v){
+  expanded = v;
+  body.style.display = v ? 'block' : 'none';
+  btnToggle.textContent = v ? '▾' : '▴';
+}
+setExpanded(false);
+
+head.addEventListener('click', ()=> setExpanded(!expanded));
+
+function setDot(cls){
+  dot.classList.remove('ok','warn','err');
+  if (cls) dot.classList.add(cls);
+}
+function setStatus(text){ statusEl.textContent = text; }
+function setMeta(text){ metaEl.textContent = text; }
+
+/** ===================  AKSES APP  =================== */
+function app() {
+  const w = appFrame.contentWindow;
+  if (!w) throw new Error('Iframe belum siap');
+  if (typeof w.collectAllData !== 'function' || typeof w.applyAllData !== 'function') {
+    throw new Error('Fungsi collectAllData/applyAllData belum tersedia');
   }
+  return w;
+}
 
-  // ====== Local Storage ======
-  const LS_KEY='absensi_n4_rasen_snapshot_v1';
-  document.getElementById('btnSaveLocal').onclick = () => {
-    try{ const c=ensureReady(); localStorage.setItem(LS_KEY, JSON.stringify(c.collectAllData())); alert('Tersimpan di perangkat ✅'); }catch(e){ alert(e.message||e); }
-  };
-  document.getElementById('btnLoadLocal').onclick = () => {
-    try{ const t=localStorage.getItem(LS_KEY); if(!t) return alert('Belum ada data lokal.'); const c=ensureReady(); c.applyAllData(JSON.parse(t)); alert('Data dimuat dari perangkat ✅'); }catch(e){ alert(e.message||e); }
-  };
-  window.addEventListener('beforeunload', () => { try{ const c=cw(); if(c&&c.collectAllData){ localStorage.setItem(LS_KEY, JSON.stringify(c.collectAllData())); } }catch(_){}});
-
-  // ====== GitHub Gist ======
-  const LS_TOKEN='absensi_n4_rasen_gist_token', LS_GIST='absensi_n4_rasen_gist_id';
-  const tokenInput=document.getElementById('gistToken'); const gistInput=document.getElementById('gistId');
-  tokenInput.value=localStorage.getItem(LS_TOKEN)||''; gistInput.value=localStorage.getItem(LS_GIST)||'';
-  tokenInput.addEventListener('change', ()=> localStorage.setItem(LS_TOKEN, tokenInput.value.trim()));
-  gistInput.addEventListener('change',  ()=> localStorage.setItem(LS_GIST,  gistInput.value.trim()));
-
-  async function ghFetch(path, opts={}){
-    const token=(tokenInput.value||'').trim(); if(!token) throw new Error('Isi GitHub Token dulu.');
-    const headers=Object.assign({'Accept':'application/vnd.github+json','Authorization':'Bearer '+token}, opts.headers||{});
-    const res=await fetch('https://api.github.com'+path, { ...opts, headers });
-    if(!res.ok){ const t=await res.text(); throw new Error('GitHub API: '+res.status+' '+t); }
-    return res.json();
+/** ===================  GIST API  =================== */
+async function gh(path, opts={}){
+  if(!GIST_TOKEN || GIST_TOKEN.startsWith('REPLACE_')) throw new Error('GIST_TOKEN belum diisi');
+  const headers = Object.assign({
+    'Accept':'application/vnd.github+json',
+    'Authorization':'Bearer '+GIST_TOKEN
+  }, opts.headers||{});
+  const res = await fetch('https://api.github.com'+path, { ...opts, headers });
+  if(!res.ok){
+    const t = await res.text().catch(()=>res.statusText);
+    throw new Error('GitHub API '+res.status+': '+t);
   }
-  document.getElementById('btnBackupGist').onclick = async () => {
+  return res.json();
+}
+async function gistLoad(){
+  if(!GIST_ID || GIST_ID.startsWith('REPLACE_')) throw new Error('GIST_ID belum diisi');
+  const out = await gh('/gists/'+GIST_ID);
+  const file = out.files[FILE_NAME] || Object.values(out.files).find(f=>/\.json$/i.test(f.filename));
+  if(!file) throw new Error('File JSON tidak ditemukan di Gist');
+  const resp = await fetch(file.raw_url);
+  return await resp.json();
+}
+async function gistSave(data){
+  if(!GIST_ID || GIST_ID.startsWith('REPLACE_')) throw new Error('GIST_ID belum diisi');
+  const body = { files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } } };
+  await gh('/gists/'+GIST_ID, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+}
+
+/** ===================  AUTO LOAD & AUTO SAVE  =================== */
+let lastJSON = '';
+let saveTimer = null;
+function jsonOf(d){ try{return JSON.stringify(d);}catch{ return ''; } }
+function scheduleSave(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
     try{
-      const c=ensureReady(); const content=JSON.stringify(c.collectAllData(), null, 2);
-      const id=(gistInput.value||'').trim(); const file='absensi-n4-rasen.json';
-      if(!id){
-        const body={ description:'Backup Absensi N4 Rasen', public:false, files:{ [file]:{ content } } };
-        const out=await ghFetch('/gists',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-        gistInput.value=out.id; localStorage.setItem(LS_GIST,out.id); alert('Backup dibuat ✅\nGist ID: '+out.id);
-      } else {
-        const body={ files:{ [file]:{ content } } };
-        await ghFetch('/gists/'+id,{ method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-        alert('Backup diperbarui ✅');
+      const d = app().collectAllData();
+      const j = jsonOf(d);
+      if (j && j !== lastJSON){
+        setStatus('Menyimpan ke Gist…'); setDot('warn');
+        await gistSave(d);
+        lastJSON = j;
+        setStatus('Tersimpan'); setDot('ok');
+        setMeta('Terakhir simpan: '+new Date().toLocaleString('id-ID'));
       }
-    }catch(e){ alert('Gagal backup: '+(e.message||e)); }
-  };
-  document.getElementById('btnRestoreGist').onclick = async () => {
-    try{
-      const id=(gistInput.value||'').trim(); if(!id) return alert('Isi Gist ID dahulu (atau lakukan Backup sekali).');
-      const out=await ghFetch('/gists/'+id);
-      const file=Object.values(out.files).find(f=>/\.json$/i.test(f.filename));
-      if(!file) throw new Error('File JSON tidak ditemukan di Gist.');
-      const resp=await fetch(file.raw_url); const data=await resp.json();
-      const c=ensureReady(); c.applyAllData(data); alert('Pulihkan dari Gist ✅');
-    }catch(e){ alert('Gagal pulihkan: '+(e.message||e)); }
-  };
-  </script>
-
-  <!-- ====== Firebase (Realtime DB + optional Google Auth) ====== -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-    // === CONFIG dari Firebase milikmu ===
-    const firebaseConfig = {
-      apiKey: "AIzaSyBcyFx4dMA2-YfC3SjeQPnDQ1_Rs1a5UsY",
-      authDomain: "absensi-n4-rasen.firebaseapp.com",
-      databaseURL: "https://absensi-n4-rasen-default-rtdb.firebaseio.com",
-      projectId: "absensi-n4-rasen",
-      storageBucket: "absensi-n4-rasen.firebasestorage.app",
-      messagingSenderId: "378590645751",
-      appId: "1:378590645751:web:05f9a4d9eeffb10acf32f2",
-      measurementId: "G-46FXS85XCT"
-    };
-
-    const app  = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db   = getDatabase(app);
-
-    const appframe = document.getElementById('appframe');
-    const appWin = () => appframe && appframe.contentWindow;
-    const needApp = () => {
-      const w = appWin();
-      if (!w || typeof w.collectAllData !== 'function' || typeof w.applyAllData !== 'function') {
-        throw new Error('App belum siap di iframe.');
-      }
-      return w;
-    };
-
-    // Path data:
-    // - Jika "Kelas Key" diisi → /classes/<key>
-    // - Jika kosong & user login → /users/<uid>/absensi
-    function getPath(uid) {
-      const key = (document.getElementById('classKey').value || '').trim();
-      if (key) return `classes/${encodeURIComponent(key)}`;
-      if (uid) return `users/${uid}/absensi`;
-      throw new Error('Isi Kelas Key atau login Google dulu.');
+    }catch(e){
+      setStatus('Gagal simpan'); setDot('err'); setMeta(e.message||e);
     }
+  }, 1200);
+}
 
-    // UI elemen
-    const btnLogin  = document.getElementById('fbLogin');
-    const btnLogout = document.getElementById('fbLogout');
-    const btnSave   = document.getElementById('fbSave');
-    const btnLoad   = document.getElementById('fbLoad');
+async function initialLoad(){
+  try{
+    setStatus('Memuat dari Gist…'); setDot('warn');
+    const data = await gistLoad();
+    app().applyAllData(data);
+    lastJSON = jsonOf(app().collectAllData());
+    setStatus('Dimuat dari Gist'); setDot('ok');
+    setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
+  }catch(e){
+    setStatus('Lewati muat otomatis'); setDot('err'); setMeta(e.message||e);
+  }
+}
 
-    // Optional: Google Sign-In
-    btnLogin.onclick  = async () => { await signInWithPopup(auth, new GoogleAuthProvider()); };
-    btnLogout.onclick = async () => { await signOut(auth); };
-
-    onAuthStateChanged(auth, (user) => {
-      btnLogin.style.display  = user ? 'none' : '';
-      btnLogout.style.display = user ? '' : 'none';
-      btnLogout.textContent   = user ? `Keluar (${user.email||user.displayName||'akun'})` : 'Keluar';
-    });
-
-    // Simpan ke Firebase
-    btnSave.onclick = async () => {
-      try {
-        const w   = needApp();
-        const data = w.collectAllData();
-        const uid  = auth.currentUser && auth.currentUser.uid;
-        const path = getPath(uid);            // bekerja baik dengan classKey (tanpa login)
-        await set(ref(db, path), data);
-        alert('✅ Tersimpan ke Firebase: ' + path);
-      } catch (e) {
-        alert('Gagal simpan: ' + e.message);
-      }
+/** Pasang listener perubahan di dalam iframe (input/select/change),
+ *  plus observer DOM untuk jaga-jaga */
+function hookChangeWatch(){
+  try{
+    const doc = appFrame.contentDocument || appFrame.contentWindow.document;
+    const rearm = () => {
+      ['input','change','keyup','blur','click'].forEach(ev=>{
+        doc.addEventListener(ev, ()=> scheduleSave(), { passive:true });
+      });
     };
+    rearm();
+    // observe body changes
+    const mo = new MutationObserver(()=> scheduleSave());
+    mo.observe(doc.body, { subtree:true, childList:true, attributes:true, characterData:true });
+  }catch(e){
+    // silent
+  }
+}
 
-    // Muat dari Firebase
-    btnLoad.onclick = async () => {
-      try {
-        const uid  = auth.currentUser && auth.currentUser.uid;
-        const path = getPath(uid);
-        const snap = await get(child(ref(db), path));
-        if (!snap.exists()) return alert('Belum ada data di: ' + path);
-        const w = needApp();
-        w.applyAllData(snap.val());
-        alert('✅ Dimuat dari Firebase: ' + path);
-      } catch (e) {
-        alert('Gagal muat: ' + e.message);
-      }
-    };
-  </script>
+/** ===================  KONTROL MANUAL  =================== */
+btnNow.addEventListener('click', ()=> scheduleSave());
+btnLoad.addEventListener('click', async ()=>{
+  try{
+    const data = await gistLoad();
+    app().applyAllData(data);
+    lastJSON = jsonOf(app().collectAllData());
+    setStatus('Dimuat dari Gist'); setDot('ok');
+    setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
+  }catch(e){
+    setStatus('Gagal muat'); setDot('err'); setMeta(e.message||e);
+  }
+});
+
+/** ===================  BOOT  =================== */
+window.addEventListener('load', ()=>{
+  // ketika app.html sudah siap, lakukan initialLoad dan pasang watcher
+  const wait = setInterval(()=>{
+    try{
+      app(); // akan throw kalau belum siap
+      clearInterval(wait);
+      initialLoad().then(()=> hookChangeWatch());
+    }catch(_){}
+  }, 150);
+
+  // default minimized agar tidak nutupi konten
+  setExpanded(false);
+});
+</script>
 </body>
 </html>
