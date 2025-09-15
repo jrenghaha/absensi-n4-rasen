@@ -74,27 +74,37 @@
   #printSummary th{text-align:center;background:#f3f4f6}
   #printSummary .col-no{width:36px}
 
-  /* === PRINT TABLE LINES FIX === */
-  #printSummary table{
-    width:100%;
-    border-collapse:collapse;
-    table-layout:fixed;
-    border:0.8pt solid #000;
-  }
-  #printSummary th,#printSummary td{
-    border:0.8pt solid #000 !important;
-    -webkit-print-color-adjust:exact;
-    print-color-adjust:exact;
-  }
-  #printSummary thead th{ background:#f3f4f6 !important; }
-  #printSummary tr{ page-break-inside:avoid; }
-
+  /* === PRINT: tampilan jelas & proporsional === */
+  @page { size: A4 portrait; margin: 8mm 10mm; }
   @media print{
     .classbar,.toolbar,.note,.subtitle,.titlebar,h1,.table-wrap{display:none !important}
-    #printSummary{display:block !important}
+    #printSummary{display:block !important; font-family: Arial, Helvetica, sans-serif; font-size:11pt}
     body{background:#fff}
     *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
+  #printSummary table{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:auto;              /* kolom menyesuaikan konten */
+    border:1pt solid #000;
+  }
+  #printSummary th,
+  #printSummary td{
+    border:1pt solid #000 !important;
+    padding:6px 8px;
+    text-align:center;
+    white-space:nowrap;
+  }
+  #printSummary thead th{ background:#f3f4f6 !important; }
+  #printSummary .col-no{width:14mm}
+  #printSummary th:nth-child(3),
+  #printSummary th:nth-child(4),
+  #printSummary th:nth-child(5),
+  #printSummary th:nth-child(6),
+  #printSummary th:nth-child(7),
+  #printSummary th:nth-child(8),
+  #printSummary th:nth-child(9){min-width:12mm}
+  #printSummary tr{ page-break-inside:avoid; }
 
   @media (max-width:640px){
     .titlebar{flex-direction:column;gap:6px}
@@ -375,7 +385,7 @@ function buildHeader(monthKey){
   for(let c=0;c<dates.length;c++){
     const d=dates[c]; const th=document.createElement('th'); th.className='date-head'; th.innerHTML=fmtDay(d);
     if(isWeekend(d)) th.classList.add('holiday');
-    if(!isSunday(d)){ // Sabtu & hari kerja aktif
+    if(!isSunday(d)){
       const del=document.createElement('button'); del.className='mini-del'; del.textContent='🗑'; del.title='Hapus nilai/absensi di tanggal ini'; del.addEventListener('click',()=>openClearDayModal(monthKey,c));
       const plus=document.createElement('button'); plus.className='mini-btn'; plus.textContent='＋'; plus.title='Tambah Nilai Otomatis (Mutlak / Abjad)'; plus.addEventListener('click',()=>bulkFillForDate(monthKey,c));
       th.appendChild(del); th.appendChild(plus);
@@ -581,7 +591,7 @@ document.getElementById('rowFillApply').addEventListener('click',()=>{
 });
 
 /* ===== Clear tanggal ===== */
-let pendingClear=null; const clearDayModal=document.getElementById('clearDayModal'); const clearDayLabel=document.getElementById('clearDayLabel');
+let pendingClear=null; const clearDayModal=document.getElementById('clearDayModal'); const clearDayLabel=document.getElementById('clearDayLabel'];
 function openClearDayModal(monKey,cIdx){ pendingClear={monKey,cIdx}; const d=DATES[monKey][cIdx]; clearDayLabel.textContent='Tanggal: '+d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}); clearDayModal.style.display='flex'; }
 const closeClearDayModal=()=>{clearDayModal.style.display='none';pendingClear=null};
 document.getElementById('clearDayCancel').addEventListener('click',closeClearDayModal);
@@ -672,7 +682,7 @@ document.getElementById('bulkAddCancel').addEventListener('click',()=>{bulkAddMo
 document.getElementById('bulkAddApply').addEventListener('click',()=>{const lines=parseNames(bulkAddArea.value); if(!lines.length){alert('Daftar nama kosong.');return;} if(bulkReplace.checked){PEOPLE=lines.map(n=>({name:n})); MONTHS.forEach(mon=>{DATA[mon]=PEOPLE.map(()=> DATES[mon].map(()=>({a:'',t:'',s:null})));}); ABSOLUTE_ORDER=lines.map(n=>n.toUpperCase());} else {const set=new Set(PEOPLE.map(p=>(p.name||'').trim().toUpperCase())); lines.forEach(n=>{if(!set.has(n.toUpperCase())){PEOPLE.push({name:n}); MONTHS.forEach(mon=> DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null})))); set.add(n.toUpperCase());}});} bulkAddModal.style.display='none'; renderAll();});
 
 /* ===== Atur urutan mutlak ===== */
-const orderEditModal=document.getElementById('orderEditModal'), orderEditArea=document.getElementById('orderEditArea');
+const orderEditModal=document.getElementById('orderEditModal'], orderEditArea=document.getElementById('orderEditArea');
 document.getElementById('btnSetOrder').addEventListener('click',()=>{orderEditArea.value='';orderEditModal.style.display='flex';});
 document.getElementById('orderEditCancel').addEventListener('click',()=>{orderEditModal.style.display='none';});
 document.getElementById('orderFillFromPeople').addEventListener('click',()=>{orderEditArea.value=PEOPLE.map(p=>p.name||'').join('\n');});
