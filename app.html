@@ -58,7 +58,8 @@
 
   .name-box{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .name-input{padding:6px 8px;border:1px solid var(--border);border-radius:8px;min-width:220px;background:#fff;color:var(--text)}
-  .remove-btn{padding:4px 8px;border-radius:8px}
+  .act-btn{padding:4px 8px;border-radius:8px}
+  .mini-fill{padding:4px 8px;border-radius:8px}
 
   .date-head{position:relative}
   .mini-btn{position:absolute; top:2px; right:2px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:10px; line-height:1; padding:2px 6px; cursor:pointer; color:var(--text);}
@@ -99,7 +100,8 @@
   .modal button{border:1px solid #000;border-radius:10px;padding:8px 12px}
   .modal .danger{border-color:#b91c1c;color:#b91c1c;background:#fff}
   .modal .primary{background:#2563eb;color:#fff;border-color:#2563eb}
-  .modal textarea{width:100%;min-height:220px;border:1px solid #000;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .modal textarea{width:100%;min-height:160px;border:1px solid #000;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .modal .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
 </style>
 </head>
 <body>
@@ -122,7 +124,7 @@
   </div>
 
   <div class="subtitle">
-    Selasa & Kamis memiliki kolom <i>taisou</i>. Sabtu juga bisa input nilai (termasuk minus). Minggu non-aktif.
+    Selasa & Kamis punya kolom <i>taisou</i>. Sabtu juga bisa input nilai (termasuk minus). Minggu non-aktif.
   </div>
 
   <div class="toolbar">
@@ -149,7 +151,8 @@
   </div>
 
   <div class="note">
-    Nilai &lt; 70 diwarnai merah. Tombol <b>＋</b> (isi nilai otomatis) & <b>🗑</b> nonaktif di <b>Minggu</b> saja.
+    Nilai &lt; 70 diwarnai merah. Tombol <b>＋</b> di header = isi nilai otomatis per <b>tanggal</b>.  
+    Tombol <b>＋ Nilai</b> di tiap nama = isi nilai otomatis per <b>nama</b> (rentang tanggal).
   </div>
 
   <div class="table-wrap">
@@ -182,7 +185,7 @@
   </div>
 </div>
 
-<!-- Modals -->
+<!-- ===== Modals ===== -->
 <div class="modal-backdrop" id="printModal">
   <div class="modal">
     <header>Pilih urutan untuk rekap cetak</header>
@@ -220,6 +223,33 @@
   </div>
 </div>
 
+<!-- Baru: Isi nilai otomatis PER NAMA -->
+<div class="modal-backdrop" id="rowFillModal">
+  <div class="modal">
+    <header>Isi Nilai Otomatis — <span id="rowFillName"></span></header>
+    <main>
+      <div class="grid">
+        <div>
+          <label>Dari tanggal</label>
+          <input type="number" id="rowFillStart" min="1" max="31" value="1">
+        </div>
+        <div>
+          <label>Sampai tanggal</label>
+          <input type="number" id="rowFillEnd" min="1" max="31" value="30">
+        </div>
+      </div>
+      <p class="muted" style="margin:6px 0 8px">Minggu otomatis dilewati. Sabtu boleh nilai negatif (−100..100).</p>
+      <label>Nilai (pisahkan spasi, koma, atau baris baru)</label>
+      <textarea id="rowFillValues" placeholder="cth: 80 85 90 -5 100"></textarea>
+    </main>
+    <footer>
+      <button id="rowFillCancel">Cancel</button>
+      <button class="primary" id="rowFillApply">Terapkan</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Fitur: tambah nama massal -->
 <div class="modal-backdrop" id="bulkAddModal">
   <div class="modal">
     <header>Tambah nama massal</header>
@@ -238,6 +268,7 @@
   </div>
 </div>
 
+<!-- Fitur: atur urutan mutlak -->
 <div class="modal-backdrop" id="orderEditModal">
   <div class="modal">
     <header>Atur Urutan Mutlak</header>
@@ -327,7 +358,7 @@ function buildHeader(monthKey){
   for(let c=0;c<dates.length;c++){
     const d=dates[c]; const th=document.createElement('th'); th.className='date-head'; th.innerHTML=fmtDay(d);
     if(isWeekend(d)) th.classList.add('holiday');
-    if(!isSunday(d)){ // allow Sabtu
+    if(!isSunday(d)){ // Sabtu & hari kerja: aktif
       const del=document.createElement('button'); del.className='mini-del'; del.textContent='🗑'; del.title='Hapus nilai/absensi di tanggal ini'; del.addEventListener('click',()=>openClearDayModal(monthKey,c));
       const plus=document.createElement('button'); plus.className='mini-btn'; plus.textContent='＋'; plus.title='Tambah Nilai Otomatis (Mutlak / Abjad)'; plus.addEventListener('click',()=>bulkFillForDate(monthKey,c));
       th.appendChild(del); th.appendChild(plus);
@@ -348,23 +379,16 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
   if(isSaturday(date)){
     td.classList.add('holiday');
     const wrap=document.createElement('div'); wrap.className='cell-inline';
+
     const selT=document.createElement('select'); selT.className='cell';
     ['', 'hadir taisou', 'izin taisou', 'tidak hadir taisou'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selT.appendChild(o);});
     selT.value=obj.t||''; selT.addEventListener('change',()=>{obj.t=selT.value; updateTotalsCells(td.parentElement,monthKey,rIdx);});
     wrap.appendChild(selT);
 
-    // === Sabtu: izinkan nilai minus (rentang -100..100) ===
+    // Sabtu: nilai boleh negatif
     const score=document.createElement('input'); score.type='number'; score.className='score'; score.min='-100'; score.max='100'; score.step='1'; score.placeholder='Nilai';
     score.value=(obj.s===null||obj.s==='')?'':obj.s;
-    const onScore=()=>{
-      let v=String(score.value||'').trim();
-      if(v===''){ obj.s=null; setScoreVisual(score,null); }
-      else{
-        let n=Number(v); if(isNaN(n)) n=null; else { n=Math.max(-100,Math.min(100,n)); }
-        obj.s=n; setScoreVisual(score,n);
-      }
-      updateTotalsCells(td.parentElement,monthKey,rIdx);
-    };
+    const onScore=()=>{let v=String(score.value||'').trim(); if(v===''){obj.s=null; setScoreVisual(score,null);} else{let n=Number(v); if(isNaN(n)) n=null; else n=Math.max(-100,Math.min(100,n)); obj.s=n; setScoreVisual(score,n);} updateTotalsCells(td.parentElement,monthKey,rIdx);};
     ['input','change','keyup','blur'].forEach(e=>score.addEventListener(e,onScore));
     wrap.appendChild(score);
 
@@ -389,7 +413,7 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
 
   const score=document.createElement('input'); score.type='number'; score.className='score'; score.min='0'; score.max='100'; score.step='1'; score.placeholder='Nilai';
   score.value=(obj.s===null||obj.s==='')?'':obj.s;
-  const handleScore=()=>{let v=String(score.value||'').trim(); if(v===''){obj.s=null; setScoreVisual(score,null);} else{let n=Number(v); if(isNaN(n)) n=null; else{n=Math.max(0,Math.min(100,n));} obj.s=n; if(n!==null){ obj.a='hadir'; selMain.value='hadir'; applyTDColor(td,'hadir'); } setScoreVisual(score,n);} updateTotalsCells(td.parentElement,monthKey,rIdx);};
+  const handleScore=()=>{let v=String(score.value||'').trim(); if(v===''){obj.s=null; setScoreVisual(score,null);} else{let n=Number(v); if(isNaN(n)) n=null; else n=Math.max(0,Math.min(100,n)); obj.s=n; if(n!==null){ obj.a='hadir'; selMain.value='hadir'; applyTDColor(td,'hadir'); } setScoreVisual(score,n);} updateTotalsCells(td.parentElement,monthKey,rIdx);};
   ['input','change','keyup','blur'].forEach(evt=>score.addEventListener(evt,handleScore));
   wrap.appendChild(score); td.appendChild(wrap);
   setScoreVisual(score,obj.s); applyTDColor(td,obj.a);
@@ -402,7 +426,7 @@ function countTotals(rowObjs, monthKey){
     if(o.a==='sakit') sakit++; else if(o.a==='hadir') hadir++; else if(o.a==='alpa') alpa++; else if(o.a==='izin') izin++; else if(o.a==='半') hanCnt++;
     if(o.t==='izin taisou') izinTai++; if(o.t==='tidak hadir taisou') tdkTai++;
     const d = DATES[monthKey][cIdx];
-    if(!isSunday(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; } // Sabtu ikut dihitung (termasuk minus)
+    if(!isSunday(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; } // Minggu di-skip; Sabtu ikut (boleh minus)
   }
   const avg = cnt ? (sum/cnt) : null;
   return {sakit,hadir,alpa,izin,izinTai,tdkTai,hanCnt,avg};
@@ -426,9 +450,12 @@ function buildBody(monthKey){
     const nameWrap=document.createElement('div'); nameWrap.className='name-box';
     const input=document.createElement('input'); input.className='name-input'; input.value=person.name;
     input.addEventListener('change',()=>{person.name=input.value; pushToActive();});
-    const delBtn=document.createElement('button'); delBtn.className='remove-btn danger'; delBtn.textContent='Hapus';
+    const autoBtn=document.createElement('button'); autoBtn.className='mini-fill'; autoBtn.textContent='＋ Nilai';
+    autoBtn.title='Isi nilai otomatis (rentang tanggal) untuk baris ini';
+    autoBtn.addEventListener('click',()=>openRowFillModal(rIdx));
+    const delBtn=document.createElement('button'); delBtn.className='act-btn danger'; delBtn.textContent='Hapus';
     delBtn.addEventListener('click',()=>{ if(confirm(`Hapus ${person.name}?`)) removePerson(rIdx); });
-    nameWrap.appendChild(input); nameWrap.appendChild(delBtn);
+    nameWrap.appendChild(input); nameWrap.appendChild(autoBtn); nameWrap.appendChild(delBtn);
     tdName.appendChild(nameWrap); tr.appendChild(tdName);
 
     DATA[monthKey][rIdx]?.forEach((obj,cIdx)=>{
@@ -446,7 +473,7 @@ function buildBody(monthKey){
   });
 }
 
-/* ===== Bulk fill nilai per tanggal ===== */
+/* ===== Bulk fill per TANGGAL (header ＋) ===== */
 const orderModal=document.getElementById('orderModal'); let orderResolve=null;
 const openOrderModal=()=>{orderModal.style.display='flex';return new Promise(res=>orderResolve=res)};
 const closeOrderModal=()=>{orderModal.style.display='none';orderResolve=null};
@@ -478,6 +505,64 @@ async function bulkFillForDate(monKey,cIdx){
   }
   renderAll();
 }
+
+/* ===== Isi nilai otomatis PER NAMA (modal baru) ===== */
+const rowFillModal=document.getElementById('rowFillModal');
+const rowFillName=document.getElementById('rowFillName');
+const rowFillStart=document.getElementById('rowFillStart');
+const rowFillEnd=document.getElementById('rowFillEnd');
+const rowFillValues=document.getElementById('rowFillValues');
+let rowFillIdx=null;
+
+function openRowFillModal(rIdx){
+  rowFillIdx=rIdx;
+  rowFillName.textContent=PEOPLE[rIdx]?.name||'Siswa';
+  const dates=DATES[monthSel.value];
+  rowFillStart.value=1;
+  rowFillEnd.value=dates[dates.length-1].getDate();
+  rowFillValues.value='';
+  rowFillModal.style.display='flex';
+}
+function closeRowFillModal(){ rowFillModal.style.display='none'; rowFillIdx=null; }
+document.getElementById('rowFillCancel').addEventListener('click',closeRowFillModal);
+document.getElementById('rowFillApply').addEventListener('click',()=>{
+  if(rowFillIdx==null) return;
+  const monKey=monthSel.value, dates=DATES[monKey];
+  const sDay=Math.max(1, Math.min(31, parseInt(rowFillStart.value||'1')));
+  const eDay=Math.max(1, Math.min(31, parseInt(rowFillEnd.value||'31')));
+  const [from,to]= sDay<=eDay ? [sDay,eDay] : [eDay,sDay];
+
+  const nums=String(rowFillValues.value||'').trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));
+  if(!nums.length){ alert('Daftar nilai masih kosong.'); return; }
+
+  // Kumpulkan indeks tanggal dalam rentang [from..to], skip Minggu
+  const idxs=[];
+  for(let i=0;i<dates.length;i++){
+    const d=dates[i]; const day=d.getDate();
+    if(day<from || day>to) continue;
+    if(isSunday(d)) continue;            // Minggu di-skip
+    idxs.push(i);
+  }
+  if(!idxs.length){ alert('Tidak ada hari yang valid dalam rentang itu.'); return; }
+
+  const len=Math.min(nums.length, idxs.length);
+  let applied=0;
+  for(let k=0;k<len;k++){
+    const i=idxs[k]; const d=dates[i]; let n=nums[k];
+    if(isNaN(n)) continue;
+    if(isSaturday(d)) n=Math.max(-100,Math.min(100,n));
+    else              n=Math.max(0,Math.min(100,n));
+    const cell=DATA[monKey][rowFillIdx][i];
+    cell.s=n;
+    if(!isSaturday(d)) cell.a='hadir'; // hari kerja -> set hadir saat ada nilai
+    applied++;
+  }
+  closeRowFillModal();
+  renderAll();
+  if(nums.length!==idxs.length){
+    alert(`Diterapkan ${applied} nilai. (${nums.length} nilai vs ${idxs.length} hari dalam rentang)`);
+  }
+});
 
 /* ===== Clear tanggal ===== */
 let pendingClear=null; const clearDayModal=document.getElementById('clearDayModal'); const clearDayLabel=document.getElementById('clearDayLabel');
@@ -550,7 +635,7 @@ function coerceCell(mon,c,raw){
   let n=Number(raw);
   if(!isNaN(n)){
     if(day===0) return {a:'',t:'',s:null};
-    if(day===6) return {a:'',t:'',s:Math.max(-100,Math.min(100,n))}; // Sabtu tidak memaksa 'hadir'
+    if(day===6) return {a:'',t:'',s:Math.max(-100,Math.min(100,n))}; // Sabtu, tidak paksa hadir
     return {a:'hadir',t:'',s:Math.max(0,Math.min(100,n))};
   }
   const txt=String(raw).toLowerCase(); const allowed={'hadir':1,'sakit':1,'izin':1,'alpa':1,'半':1};
@@ -591,7 +676,6 @@ const fileInput=document.getElementById('fileInput'); document.getElementById('b
 fileInput.addEventListener('change',e=>{const f=e.target.files[0]; if(!f) return; const rdr=new FileReader(); rdr.onload=()=>{try{const obj=JSON.parse(rdr.result); if(obj&&Array.isArray(obj.classes)) applyAllDataV2(obj); else if(obj&&obj.values) applyAllDataV1(obj); else throw new Error('schema tidak dikenal');}catch(err){console.error(err);alert('File tidak valid / schema tidak dikenal.');}}; rdr.readAsText(f); fileInput.value='';});
 
 /* ===== Kompat Sync ===== */
-function collectAllDataV2(){ pushToActive(); return {version:2,month_keys:MONTHS,months:{september:DATES.september.map(toLocalYMD),oktober:DATES.oktober.map(toLocalYMD),november:DATES.november.map(toLocalYMD)},active:ACTIVE_ID,classes:Object.values(CLASSES).map(c=>({id:c.id,name:c.name,absoluteOrder:c.absoluteOrder,people:c.people,values:c.values}))}; }
 window.collectAllData=function(){try{return collectAllDataV2();}catch(e){console.error(e);alert('Gagal menyiapkan data untuk Sync.');return null;}};
 window.applyAllData=function(obj){try{if(obj&&Array.isArray(obj.classes)) applyAllDataV2(obj); else if(obj&&obj.values) applyAllDataV1(obj); else throw new Error('Schema tidak dikenal'); renderAll(); return true;}catch(e){console.error(e);alert('Data dari Sync tidak cocok.');return false;}};
 </script>
