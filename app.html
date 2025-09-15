@@ -423,7 +423,7 @@ goPrint.addEventListener('click', ()=>{
   else if(order==='rank') rows.sort((a,b)=> (isFinite(b.avg)?b.avg:-Infinity) - (isFinite(a.avg)?a.avg:-Infinity));
   // 'abs' tetap sesuai PEOPLE
 
-  // buat jendela cetak sederhana tanpa menyisipkan </script> dalam string
+  // buat jendela cetak sederhana tanpa menyisipkan <\/script> dalam string
   const win = window.open('', '_blank');
   const title = document.getElementById('title').textContent || 'Kelas';
   const monthsText = document.getElementById('monthsLabel').textContent || '';
@@ -460,7 +460,7 @@ goPrint.addEventListener('click', ()=>{
   const head = `<h2 style="margin:6px 0">Rekap ${title} — ${monthsText}</h2><div style="margin:4px 0">Urutan: ${order==='az'?'Abjad':order==='rank'?'Rangking':'Mutlak'}. Bulan: ${m==='all'?'Semua':MONTHS[monthFilter].label}</div>`;
   const tHead = `<tr><th>Nama</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th><th>半</th><th>Tak Taisou</th><th>Rata-rata</th></tr>`;
   const tRows = rows.map(r=>`<tr><td class="name">${escapeHtml(r.name)}</td><td>${r.hadir}</td><td>${r.sakit}</td><td>${r.izin}</td><td>${r.alpa}</td><td>${r.half}</td><td>${r.noTaisou}</td><td>${isFinite(r.avg)?r.avg.toFixed(1):'-'}</td></tr>`).join('');
-  win.document.write(`<html><head><meta charset="utf-8"><title>Rekap</title><style>${style}</style></head><body>${head}<table>${tHead}${tRows}</table><script>window.onload=()=>window.print()</script></body></html>`);
+  win.document.write(`<html><head><meta charset="utf-8"><title>Rekap</title><style>${style}</style></head><body>${head}<table>${tHead}${tRows}</table><script>window.onload=()=>window.print()<\/script></body></html>`);
   win.document.close();
 });
 
@@ -623,6 +623,6 @@ function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":
   renderHead();
   renderBody();
 })();
-</script>
+<\/script>
 </body>
 </html>
