@@ -41,7 +41,6 @@
       <div id="loginBox" class="row">
         <input id="pwInput" type="password" placeholder="Password" autocomplete="current-password">
         <button id="pwOpen" class="btn primary" type="button">Buka</button>
-        <button id="pwClear" class="btn ghost" type="button">Hapus Kredensial</button>
       </div>
 
       <div class="row" id="btnRow" style="display:none;gap:8px;flex-wrap:wrap">
@@ -56,14 +55,13 @@
 const PASSWORD_CORRECT = "inipassword12";
 const DOC_URL = "https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub";
 const FILE_NAME = "absensi-n4-rasen.json";
-const LS_ID='ABSENSI_GIST_ID', LS_TOK='ABSENSI_GIST_TOKEN';
 
 /* ====== UI ====== */
 const $ = s=>document.querySelector(s);
 const appFrame = $('#appframe');
 const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#syncToggle');
 const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
-const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen'), pwClear=$('#pwClear');
+const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen');
 const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad');
 let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
@@ -72,10 +70,11 @@ function setDot(c){ dot.classList.remove('ok','warn','err'); if(c) dot.classList
 function setStatus(t,cls){ statusEl.textContent=t; if(cls) statusEl.className=cls; }
 function setMeta(t){ metaEl.textContent=t; }
 
-/* ====== kredensial ====== */
-function getCreds(){ return { id: localStorage.getItem(LS_ID)||'', token: localStorage.getItem(LS_TOK)||'' }; }
-function saveCreds(id, tok){ localStorage.setItem(LS_ID, id.trim()); localStorage.setItem(LS_TOK, tok.trim()); }
-function clearCreds(){ localStorage.removeItem(LS_ID); localStorage.removeItem(LS_TOK); }
+/* ====== kredensial (hanya di RAM, tidak di localStorage) ====== */
+let sessionCreds = { id:'', token:'' };
+function getCreds(){ return sessionCreds; }
+function saveCreds(id, tok){ sessionCreds = { id:id.trim(), token:tok.trim() }; }
+function clearCreds(){ sessionCreds = { id:'', token:'' }; }
 
 /* ====== akses app.html ====== */
 function app(){
@@ -129,7 +128,7 @@ let isLoading=false;    // guard: jangan autosave saat loading
 
 function jsonOf(d){ try{return JSON.stringify(d);}catch{return'';} }
 function scheduleSave(){
-  if (isLoading) return;             // cegah save saat sedang load
+  if (isLoading) return;
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer=setTimeout(async ()=>{
     try{
@@ -147,7 +146,7 @@ async function initialLoad(){
   const {id,token}=getCreds();
   if(!id || !token){ setStatus('Perlu password','err'); setDot('err'); return; }
   try{
-    isLoading = true;                            // start guard
+    isLoading = true;
     setStatus('Memuat dari Gist…','warn'); setDot('warn');
     const data=await gistLoad(); app().applyAllData(data);
     lastJSON=jsonOf(app().collectAllData());
@@ -157,34 +156,17 @@ async function initialLoad(){
   }catch(e){
     setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e));
   } finally {
-    isLoading = false;                           // end guard
+    isLoading = false;
   }
 }
 
-/* ====== parser kredensial (rekonstruksi 32 hex & potong ghp_) ====== */
+/* ====== parser kredensial ====== */
 function extractCreds(raw) {
   let text = raw;
   if (/^\s*</.test(text)) { const tmp=document.createElement('div'); tmp.innerHTML=text; text=tmp.textContent||''; }
   text = text.replace(/\r/g,'').replace(/\u00A0/g,' ').replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
-
-  // Gist ID (utuh atau rakit)
   let gistId = (text.match(/\b([a-f0-9]{32})\b/i) || [,''])[1] || '';
-  if (!gistId) {
-    let buf='', groups=[];
-    for (const ch of text){ if(/[a-f0-9]/i.test(ch)) buf+=ch; else { if(buf){groups.push(buf); buf='';} } }
-    if (buf) groups.push(buf);
-    for (const g of groups) if (g.length>=32){ gistId=g.slice(0,32); break; }
-  }
-
-  // Token (hard cap ghp_ + 36) atau github_pat_
   let token = (text.match(/\b(ghp_[A-Za-z0-9]{36})\b/) || [,''])[1] || '';
-  if (!token) {
-    const idx = text.search(/ghp_/);
-    if (idx >= 0) {
-      const tail = text.slice(idx+4).replace(/[^A-Za-z0-9]/g,'');
-      if (tail.length >= 36) token = 'ghp_'+tail.slice(0,36);
-    }
-  }
   if (!token) {
     const m = text.match(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/);
     if (m) token = m[0];
@@ -192,7 +174,7 @@ function extractCreds(raw) {
   return { gistId, token };
 }
 
-/* ====== password → ambil dari Google Docs ====== */
+/* ====== password unlock ====== */
 async function unlockViaGoogleDoc(){
   const pass = (pwInput.value||'').trim();
   if (pass !== PASSWORD_CORRECT){ setStatus('Password salah','err'); setDot('err'); return; }
@@ -218,7 +200,6 @@ async function unlockViaGoogleDoc(){
 /* ====== hooks ====== */
 pwOpen.addEventListener('click', unlockViaGoogleDoc);
 pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
-pwClear.addEventListener('click', ()=>{ clearCreds(); setStatus('Kredensial dihapus','warn'); setDot('warn'); loginBox.style.display='block'; btnRow.style.display='none'; });
 
 // tombol: Simpan & Muat Ulang
 btnNow.addEventListener('click', ()=>scheduleSave());
@@ -251,8 +232,8 @@ function hookChangeWatch(){
 
 /* ====== boot ====== */
 window.addEventListener('load', ()=>{
-  const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); initialLoad(); }catch(_){ } },150);
-  body.style.display='none'; // mulai dalam keadaan minimize
+  const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); }catch(_){ } },150);
+  body.style.display='none';
 });
 </script>
 </body>
