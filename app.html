@@ -105,13 +105,14 @@
 
   /* Modals */
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
-  .modal{background:#fff;border:1px solid #000;border-radius:12px;max-width:560px;width:100%}
+  .modal{background:#fff;border:1px solid #000;border-radius:12px;max-width:680px;width:100%}
   .modal header{padding:12px 14px;border-bottom:1px solid #000;font-weight:700}
   .modal main{padding:14px}
   .modal footer{padding:12px 14px;border-top:1px solid #000;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   .modal button{border:1px solid #000;border-radius:10px;padding:8px 12px}
   .modal .danger{border-color:#b91c1c;color:#b91c1c;background:#fff}
   .modal .primary{background:#2563eb;color:#fff;border-color:#2563eb}
+  .modal textarea{width:100%;min-height:220px;border:1px solid #000;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace}
 </style>
 </head>
 <body>
@@ -125,6 +126,9 @@
     <button id="btnNewClass">Kelas Baru</button>
     <button id="btnDupClass">Duplikat</button>
     <button class="danger" id="btnDelClass">Hapus</button>
+    <!-- Fitur baru -->
+    <button id="btnBulkAdd">Tambah Nama Massal</button>
+    <button id="btnSetOrder">Atur Urutan Mutlak</button>
   </div>
 
   <div class="titlebar">
@@ -232,6 +236,49 @@
   </div>
 </div>
 
+<!-- Fitur baru: tambah nama massal -->
+<div class="modal-backdrop" id="bulkAddModal">
+  <div class="modal">
+    <header>Tambah nama massal</header>
+    <main>
+      <p>Tempel daftar nama (satu baris satu nama). Contoh:</p>
+      <pre style="white-space:pre-wrap;background:#f9fafb;border:1px solid #000;padding:8px;border-radius:8px;margin:6px 0">
+FARADILLA BELVA LOLASARI
+JHANATAN REZA NOVALDO
+ANISA NUR RAHMAWATI
+…dst</pre>
+      <textarea id="bulkAddArea" placeholder="Tempel daftar nama di sini…"></textarea>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <input type="checkbox" id="bulkReplace">
+        <span>Ganti semua nama yang ada (data absensi akan direset)</span>
+      </label>
+    </main>
+    <footer>
+      <button id="bulkAddCancel">Cancel</button>
+      <button class="primary" id="bulkAddApply">Tambahkan</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Fitur baru: atur urutan mutlak -->
+<div class="modal-backdrop" id="orderEditModal">
+  <div class="modal">
+    <header>Atur Urutan Mutlak</header>
+    <main>
+      <p>Tempel urutan nama (satu baris satu nama). Nama yang tidak tercantum akan ditempatkan setelahnya.</p>
+      <textarea id="orderEditArea" placeholder="Tempel urutan nama mutlak di sini…"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button id="orderFillFromPeople">Isi dari daftar nama saat ini</button>
+        <button id="orderFillFromAbsolute">Isi dari urutan mutlak saat ini</button>
+      </div>
+    </main>
+    <footer>
+      <button id="orderEditCancel">Cancel</button>
+      <button class="primary" id="orderEditApply">Simpan Urutan</button>
+    </footer>
+  </div>
+</div>
+
 <script>
 /* =================== UTIL & KONST =================== */
 const MONTHS = ['september','oktober','november'];
@@ -244,6 +291,8 @@ const fmtMonth=d=>d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
 const fmtDay=d=>`${d.toLocaleDateString('id-ID',{day:'2-digit'})}<br>${d.toLocaleDateString('id-ID',{weekday:'short'})}`;
 const deepClone=o=>JSON.parse(JSON.stringify(o));
 const slug=s=>s.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+const normalizeName=s=>s.replace(/\s+/g,' ').trim();
+const parseNames=txt=>String(txt||'').split(/\r?\n/).map(normalizeName).filter(Boolean);
 
 /* =================== STATE MULTI-KELAS =================== */
 let CLASSES = {};        // id -> {id,name,absoluteOrder,people,values}
@@ -472,10 +521,6 @@ function buildBody(monthKey){
 }
 
 /* ====== helper isi nilai per siswa ====== */
-function parseBulkInput(txt){ if(!txt) return {range:null,scores:[]};
-  const m=txt.match(/^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(.+)$/); if(m){const scores=m[3].trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));return{range:[+m[1],+m[2]],scores};}
-  const scores=txt.trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n)); return {range:null,scores};
-}
 function eligibleDateIndices(monthKey, sDay, eDay){
   const arr=[]; const dates=DATES[monthKey];
   for(let i=0;i<dates.length;i++){ const d=dates[i], day=d.getDate(); if(sDay!=null&&eDay!=null){ if(day<sDay||day>eDay) continue;} if(isWeekend(d)) continue; arr.push(i); }
@@ -682,12 +727,66 @@ function sortMutlak(){
 }
 function addPerson(name){
   name=name&&name.trim(); if(!name) return;
+  // hindari duplikat (case-insensitive)
+  const exists = PEOPLE.some(p => (p.name||'').trim().toUpperCase() === name.toUpperCase());
+  if(exists) return;
   PEOPLE.push({name}); MONTHS.forEach(mon=>DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null}))));
   document.getElementById('newName').value=''; renderAll();
 }
 function removePerson(rIdx){
   PEOPLE.splice(rIdx,1); MONTHS.forEach(mon=>DATA[mon].splice(rIdx,1)); renderAll();
 }
+
+/* ====== Fitur baru: Tambah nama massal ====== */
+const bulkAddModal=document.getElementById('bulkAddModal');
+const bulkAddArea=document.getElementById('bulkAddArea');
+const bulkReplace=document.getElementById('bulkReplace');
+document.getElementById('btnBulkAdd').addEventListener('click',()=>{bulkAddArea.value='';bulkReplace.checked=false;bulkAddModal.style.display='flex';});
+document.getElementById('bulkAddCancel').addEventListener('click',()=>{bulkAddModal.style.display='none';});
+document.getElementById('bulkAddApply').addEventListener('click',()=>{
+  const lines=parseNames(bulkAddArea.value);
+  if(!lines.length){ alert('Daftar nama masih kosong.'); return; }
+  if(bulkReplace.checked){
+    PEOPLE = lines.map(n=>({name:n}));
+    MONTHS.forEach(mon=>{ DATA[mon] = PEOPLE.map(()=> DATES[mon].map(()=>({a:'',t:'',s:null}))); });
+    // set urutan mutlak default sama dengan daftar tadi (versi uppercase)
+    ABSOLUTE_ORDER = lines.map(n=>n.toUpperCase());
+  }else{
+    const existingSet=new Set(PEOPLE.map(p=>(p.name||'').trim().toUpperCase()));
+    lines.forEach(n=>{
+      if(!existingSet.has(n.toUpperCase())){
+        PEOPLE.push({name:n});
+        MONTHS.forEach(mon=> DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null}))) );
+        existingSet.add(n.toUpperCase());
+      }
+    });
+  }
+  bulkAddModal.style.display='none';
+  renderAll();
+});
+
+/* ====== Fitur baru: Atur urutan mutlak ====== */
+const orderEditModal=document.getElementById('orderEditModal');
+const orderEditArea=document.getElementById('orderEditArea');
+document.getElementById('btnSetOrder').addEventListener('click',()=>{
+  orderEditArea.value='';
+  orderEditModal.style.display='flex';
+});
+document.getElementById('orderEditCancel').addEventListener('click',()=>{orderEditModal.style.display='none';});
+document.getElementById('orderFillFromPeople').addEventListener('click',()=>{
+  orderEditArea.value = PEOPLE.map(p=>p.name||'').join('\n');
+});
+document.getElementById('orderFillFromAbsolute').addEventListener('click',()=>{
+  orderEditArea.value = (ABSOLUTE_ORDER||[]).join('\n');
+});
+document.getElementById('orderEditApply').addEventListener('click',()=>{
+  const lines = parseNames(orderEditArea.value).map(s=>s.toUpperCase());
+  if(!lines.length){ alert('Daftar urutan masih kosong.'); return; }
+  // simpan urutan mutlak; nama yang tidak ada di daftar akan ditaruh setelahnya saat sortMutlak
+  ABSOLUTE_ORDER = lines;
+  orderEditModal.style.display='none';
+  alert('Urutan mutlak disimpan.\nGunakan tombol "Urut Mutlak" untuk menerapkannya pada tampilan.');
+});
 
 /* ====== Init & events ====== */
 pullFromActive(); renderAll();
