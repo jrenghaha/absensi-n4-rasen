@@ -249,7 +249,7 @@ const slug=s=>s.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)
 let CLASSES = {};        // id -> {id,name,absoluteOrder,people,values}
 let ACTIVE_ID = null;
 
-// default kelas pertama (isi sesuai versi sebelumnya)
+// default kelas pertama
 (function initDefault(){
   const defaultNames = [
     "ZASKIA AMILA","VANIA PUTRI TARISA","AIFI DEWI ANGGRAINI","SAVIRA ALMAS NUR ARIFIN",
@@ -273,7 +273,7 @@ let ACTIVE_ID = null;
 const classSel = document.getElementById('classSel');
 const titleInput=document.getElementById('titleInput');
 
-/* ========== BIND GLOBALS (agar kode lama tetap jalan) ========== */
+/* ========== BIND GLOBALS (agar kode tabel tetap jalan) ========== */
 let TITLE='', ABSOLUTE_ORDER=[], PEOPLE=[], DATA={};
 function pullFromActive(){
   const C = CLASSES[ACTIVE_ID];
@@ -338,15 +338,14 @@ document.getElementById('btnDelClass').addEventListener('click', delClass);
 
 titleInput.addEventListener('input',()=>{ TITLE=titleInput.value; pushToActive(); refreshClassSelector(); });
 
-/* =================== ABSENSI TABLE (kode lama disesuaikan) =================== */
+/* =================== ABSENSI TABLE =================== */
 const thead=document.getElementById('thead');
 const tbody=document.getElementById('tbody');
 const monthSel=document.getElementById('monthSel');
 
 const applyTDColor=(td,val)=>{ td.classList.remove('sakit','alpa','izin','han');
   if(val==='sakit') td.classList.add('sakit'); else if(val==='alpa') td.classList.add('alpa');
-  else if(val==='izin') td.classList.add('izin'); else if(val==='半') td.classList.add('han');
-};
+  else if(val==='izin') td.classList.add('izin'); else if(val==='半') td.classList.add('han'); };
 const setScoreVisual=(el,raw)=>{ const n=(raw===null||raw==='')?null:Number(raw); if(n!==null && !isNaN(n) && n<70) el.classList.add('low-score'); else el.classList.remove('low-score'); };
 
 function buildHeader(monthKey){
@@ -587,7 +586,6 @@ function buildPrintSummary(orderMode){
 function renderAll(){ pushToActive(); const key=monthSel.value; ensureMatrixShape(); buildHeader(key); buildBody(key); }
 
 function ensureMatrixShape(){
-  // pastikan jumlah baris nilai = jumlah siswa
   MONTHS.forEach(mon=>{
     const rows = PEOPLE.length;
     if(!Array.isArray(DATA[mon])) DATA[mon]=[];
@@ -625,7 +623,6 @@ function applyAllDataV1(obj){ // kompatibel file lama (single kelas)
     values: {september:[],oktober:[],november:[]}
   };
   ACTIVE_ID = id;
-  // konversi nilai
   MONTHS.forEach(mon=>{
     const cols=DATES[mon].length; const incoming=obj.values?.[mon]||[];
     CLASSES[id].values[mon] = CLASSES[id].people.map((_,r)=>{
@@ -669,7 +666,7 @@ function coerceCell(mon, c, raw){
   return {a:(allowed[txt]?txt:''), t:'', s:null};
 }
 
-/* ====== NO-OP localStorage (tetap dimatikan) ====== */
+/* ====== NO-OP localStorage ====== */
 function saveToLocal(){} function loadFromLocal(){return false} function clearLocal(){}
 
 /* ====== Sorting & CRUD ====== */
@@ -719,6 +716,25 @@ fileInput.addEventListener('change',e=>{
     } catch(err){ console.error(err); alert('File tidak valid / schema tidak dikenal.'); } };
   rdr.readAsText(f); fileInput.value='';
 });
+
+/* ====== KOMPATIBILITAS WIDGET SYNC (index.html) ====== */
+window.collectAllData = function () {
+  try { return collectAllDataV2(); }
+  catch (e) { console.error(e); alert('Gagal menyiapkan data untuk Sync.'); return null; }
+};
+window.applyAllData = function (obj) {
+  try {
+    if (obj && Array.isArray(obj.classes))      applyAllDataV2(obj);
+    else if (obj && obj.values)                 applyAllDataV1(obj);
+    else throw new Error('Schema tidak dikenal');
+    renderAll();
+    return true;
+  } catch (e) {
+    console.error(e);
+    alert('Data dari Sync tidak cocok dengan aplikasi.');
+    return false;
+  }
+};
 </script>
 </body>
 </html>
