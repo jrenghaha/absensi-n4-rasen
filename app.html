@@ -423,6 +423,35 @@ goPrint.addEventListener('click', ()=>{
   else if(order==='rank') rows.sort((a,b)=> (isFinite(b.avg)?b.avg:-Infinity) - (isFinite(a.avg)?a.avg:-Infinity));
   // 'abs' tetap sesuai PEOPLE
 
+  // buat jendela cetak sederhana tanpa menyisipkan </script> dalam string
+  const win = window.open('', '_blank');
+  const title = document.getElementById('title').textContent || 'Kelas';
+  const monthsText = document.getElementById('monthsLabel').textContent || '';
+  const style = `body{font:13px/1.4 system-ui,Segoe UI,Roboto} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px 8px;text-align:center} th{text-align:center;background:#f3f4f6} td.name{text-align:left}`;
+  const head = `<h2 style=\"margin:6px 0\">Rekap ${title} — ${monthsText}</h2><div style=\"margin:4px 0\">Urutan: ${order==='az'?'Abjad':order==='rank'?'Rangking':'Mutlak'}. Bulan: ${m==='all'?'Semua':MONTHS[monthFilter].label}</div>`;
+  const tHead = `<tr><th>Nama</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th><th>半</th><th>Tak Taisou</th><th>Rata-rata</th></tr>`;
+  const tRows = rows.map(r=>`<tr><td class=\"name\">${escapeHtml(r.name)}</td><td>${r.hadir}</td><td>${r.sakit}</td><td>${r.izin}</td><td>${r.alpa}</td><td>${r.half}</td><td>${r.noTaisou}</td><td>${isFinite(r.avg)?r.avg.toFixed(1):'-'}</td></tr>`).join('');
+  const html = `<!doctype html><html><head><meta charset=\"utf-8\"><title>Rekap</title><style>${style}</style></head><body>${head}<table>${tHead}${tRows}</table></body></html>`;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  setTimeout(()=>{ try { win.focus(); win.print(); } catch(_){} }, 50);
+});
+  const order = printOrderSel.value; // 'abs' | 'az' | 'rank'
+  const m = printMonths.value; // 'all' | 'm0' | 'm1' | 'm2'
+  const monthFilter = m==='all'? 'all' : Number(m.slice(1));
+
+  // siapkan data rekap
+  let rows = PEOPLE.map((p,i)=>({
+    name: p.name,
+    ...computeSummary(i, monthFilter)
+  }));
+
+  // urut sesuai pilihan
+  if(order==='az') rows.sort((a,b)=> a.name.localeCompare(b.name,'id'));
+  else if(order==='rank') rows.sort((a,b)=> (isFinite(b.avg)?b.avg:-Infinity) - (isFinite(a.avg)?a.avg:-Infinity));
+  // 'abs' tetap sesuai PEOPLE
+
   // buat jendela cetak sederhana
   const win = window.open('', '_blank');
   const title = document.getElementById('title').textContent || 'Kelas';
