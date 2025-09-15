@@ -32,7 +32,7 @@
   input[type="number"].score{width:90px;padding:6px 8px;border-radius:8px;background:#fff;color:var(--text)}
   .note{color:var(--muted);font-size:.9rem}
 
-  .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+  .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--card);-webkit-overflow-scrolling:touch}
   table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
   th,td{border:1px solid var(--border);padding:6px 8px;text-align:center;white-space:nowrap;vertical-align:middle}
   thead th{background:var(--head);font-weight:700}
@@ -73,7 +73,7 @@
   #printSummary .col-no{width:36px}
 
   @media print{
-    .classbar,.toolbar,.note,.subtitle,.titlebar,.table-wrap{display:none !important}
+    .classbar,.toolbar,.note,.subtitle,.titlebar,h1,.table-wrap{display:none !important}
     #printSummary{display:block !important}
     body{background:#fff}
   }
@@ -122,7 +122,7 @@
   </div>
 
   <div class="subtitle">
-    Selasa & Kamis memiliki kolom <i>taisou</i>. Sabtu juga bisa input nilai. Minggu non-aktif.
+    Selasa & Kamis memiliki kolom <i>taisou</i>. Sabtu juga bisa input nilai (termasuk minus). Minggu non-aktif.
   </div>
 
   <div class="toolbar">
@@ -149,7 +149,7 @@
   </div>
 
   <div class="note">
-    Nilai &lt; 70 diwarnai merah. Tombol <b>＋</b> (isi nilai otomatis) & <b>🗑</b> tidak berlaku di <b>Minggu</b>.
+    Nilai &lt; 70 diwarnai merah. Tombol <b>＋</b> (isi nilai otomatis) & <b>🗑</b> nonaktif di <b>Minggu</b> saja.
   </div>
 
   <div class="table-wrap">
@@ -353,9 +353,18 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
     selT.value=obj.t||''; selT.addEventListener('change',()=>{obj.t=selT.value; updateTotalsCells(td.parentElement,monthKey,rIdx);});
     wrap.appendChild(selT);
 
-    const score=document.createElement('input'); score.type='number'; score.className='score'; score.min='0'; score.max='100'; score.step='1'; score.placeholder='Nilai';
+    // === Sabtu: izinkan nilai minus (rentang -100..100) ===
+    const score=document.createElement('input'); score.type='number'; score.className='score'; score.min='-100'; score.max='100'; score.step='1'; score.placeholder='Nilai';
     score.value=(obj.s===null||obj.s==='')?'':obj.s;
-    const onScore=()=>{let v=String(score.value||'').trim(); if(v===''){obj.s=null; setScoreVisual(score,null);} else{let n=Number(v); if(isNaN(n)) n=null; else{n=Math.max(0,Math.min(100,n));} obj.s=n; setScoreVisual(score,n);} updateTotalsCells(td.parentElement,monthKey,rIdx);};
+    const onScore=()=>{
+      let v=String(score.value||'').trim();
+      if(v===''){ obj.s=null; setScoreVisual(score,null); }
+      else{
+        let n=Number(v); if(isNaN(n)) n=null; else { n=Math.max(-100,Math.min(100,n)); }
+        obj.s=n; setScoreVisual(score,n);
+      }
+      updateTotalsCells(td.parentElement,monthKey,rIdx);
+    };
     ['input','change','keyup','blur'].forEach(e=>score.addEventListener(e,onScore));
     wrap.appendChild(score);
 
@@ -393,7 +402,7 @@ function countTotals(rowObjs, monthKey){
     if(o.a==='sakit') sakit++; else if(o.a==='hadir') hadir++; else if(o.a==='alpa') alpa++; else if(o.a==='izin') izin++; else if(o.a==='半') hanCnt++;
     if(o.t==='izin taisou') izinTai++; if(o.t==='tidak hadir taisou') tdkTai++;
     const d = DATES[monthKey][cIdx];
-    if(!isSunday(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; } // Sabtu dihitung
+    if(!isSunday(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; } // Sabtu ikut dihitung (termasuk minus)
   }
   const avg = cnt ? (sum/cnt) : null;
   return {sakit,hadir,alpa,izin,izinTai,tdkTai,hanCnt,avg};
@@ -454,14 +463,19 @@ async function bulkFillForDate(monKey,cIdx){
   else{ orderUpper = PEOPLE.map(p=>(p.name||'').trim().toUpperCase()).sort((a,b)=>a.localeCompare(b,'id',{sensitivity:'base'})); }
 
   const tgl=d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-  const sample=`89\n84\n87\n87\n87\n81\n79\n74\n70\n74\n77\n84\n71\n80\n74\n77\n74\n74`;
+  const sample=`89\n84\n87\n87\n87\n81\n79\n-5\n-10\n74\n77\n84\n71\n80\n74\n77\n74\n74`;
   const inText=prompt(`Tempel ${orderUpper.length} nilai urut (${mode.toUpperCase()}) untuk ${tgl}:`,sample); if(inText==null) return;
 
   const arr=String(inText).trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));
   if(arr.length!==orderUpper.length){ alert(`Butuh ${orderUpper.length} nilai, kamu memasukkan ${arr.length}.`); return; }
 
   const nameToRow=new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(),i]));
-  for(let i=0;i<orderUpper.length;i++){ const nm=orderUpper[i]; const rIdx=nameToRow.get(nm); if(rIdx==null) continue; const n=Math.max(0,Math.min(100,arr[i])); const cell=DATA[monKey][rIdx][cIdx]; cell.s=n; cell.a=isSaturday(d)?cell.a:'hadir'; }
+  for(let i=0;i<orderUpper.length;i++){
+    const nm=orderUpper[i]; const rIdx=nameToRow.get(nm); if(rIdx==null) continue;
+    let n=arr[i];
+    if(isSaturday(d)) n=Math.max(-100,Math.min(100,n)); else n=Math.max(0,Math.min(100,n));
+    const cell=DATA[monKey][rIdx][cIdx]; cell.s=n; if(!isSaturday(d)) cell.a='hadir';
+  }
   renderAll();
 }
 
@@ -523,7 +537,25 @@ function clearAll(){ if(!confirm('Hapus SEMUA data termasuk NAMA pada kelas ini?
 function collectAllDataV2(){ pushToActive(); return {version:2,month_keys:MONTHS,months:{september:DATES.september.map(toLocalYMD),oktober:DATES.oktober.map(toLocalYMD),november:DATES.november.map(toLocalYMD)},active:ACTIVE_ID,classes:Object.values(CLASSES).map(c=>({id:c.id,name:c.name,absoluteOrder:c.absoluteOrder,people:c.people,values:c.values}))}; }
 function applyAllDataV1(obj){ const id=slug(obj.title||'Kelas')||'kelas'; CLASSES={}; CLASSES[id]={id,name:obj.title||'Kelas',absoluteOrder:(obj.people||[]).map(p=>(p.name||'').toUpperCase()),people:(obj.people||[]).map(p=>({name:p.name||''})),values:{september:[],oktober:[],november:[]}}; ACTIVE_ID=id; MONTHS.forEach(mon=>{const cols=DATES[mon].length; const incoming=obj.values?.[mon]||[]; CLASSES[id].values[mon]=CLASSES[id].people.map((_,r)=>{const src=incoming[r]||[]; const row=[]; for(let c=0;c<cols;c++){ row.push(coerceCell(mon,c,src[c])); } return row;});}); refreshClassSelector(); renderAll(); }
 function applyAllDataV2(obj){ const arr=Array.isArray(obj.classes)?obj.classes:[]; if(!arr.length) throw new Error('Tidak ada classes.'); CLASSES={}; arr.forEach(c=>{const id=c.id||slug(c.name||'kelas')||'kelas'; CLASSES[id]={id,name:c.name||'Kelas',absoluteOrder:Array.isArray(c.absoluteOrder)?c.absoluteOrder:[],people:Array.isArray(c.people)?c.people.map(p=>({name:p.name||''})):[],values:{september:[],oktober:[],november:[]}}; MONTHS.forEach(mon=>{const cols=DATES[mon].length; const incoming=c.values?.[mon]||[]; CLASSES[id].values[mon]=CLASSES[id].people.map((_,r)=>{const src=incoming[r]||[]; const row=[]; for(let ci=0;ci<cols;ci++){ row.push(coerceCell(mon,ci,src[ci])); } return row;});});}); ACTIVE_ID=obj.active&&CLASSES[obj.active]?obj.active:Object.keys(CLASSES)[0]; refreshClassSelector(); renderAll(); }
-function coerceCell(mon,c,raw){ const d=DATES[mon][c]; const sunday=(d.getDay()===0); if(raw==null) return {a:'',t:'',s:null}; if(typeof raw==='object'){ const a=raw.a||''; const t=raw.t||''; let s=(raw.s===undefined?null:raw.s); if(sunday) s=null; return {a,t,s}; } let n=Number(raw); if(!isNaN(n)) return sunday?{a:'',t:'',s:null}:{a:'hadir',t:'',s:Math.max(0,Math.min(100,n))}; const txt=String(raw).toLowerCase(); const allowed={'hadir':1,'sakit':1,'izin':1,'alpa':1,'半':1}; return {a:(allowed[txt]?txt:''),t:'',s:null}; }
+function coerceCell(mon,c,raw){
+  const d=DATES[mon][c]; const day=d.getDay(); // 0=Min, 6=Sabtu
+  if(raw==null) return {a:'',t:'',s:null};
+  if(typeof raw==='object'){
+    const a=raw.a||''; const t=raw.t||''; let s=(raw.s===undefined?null:raw.s);
+    if(day===0) s=null;                      // Minggu selalu null
+    if(day===6 && s!=null) s=Math.max(-100,Math.min(100,Number(s))); // Sabtu boleh minus
+    if(day!==6 && day!==0 && s!=null) s=Math.max(0,Math.min(100,Number(s)));
+    return {a,t,s};
+  }
+  let n=Number(raw);
+  if(!isNaN(n)){
+    if(day===0) return {a:'',t:'',s:null};
+    if(day===6) return {a:'',t:'',s:Math.max(-100,Math.min(100,n))}; // Sabtu tidak memaksa 'hadir'
+    return {a:'hadir',t:'',s:Math.max(0,Math.min(100,n))};
+  }
+  const txt=String(raw).toLowerCase(); const allowed={'hadir':1,'sakit':1,'izin':1,'alpa':1,'半':1};
+  return {a:(allowed[txt]?txt:''),t:'',s:null};
+}
 
 /* ===== Nama & sort ===== */
 function saveToLocal(){} function loadFromLocal(){return false} function clearLocal(){}
@@ -559,6 +591,7 @@ const fileInput=document.getElementById('fileInput'); document.getElementById('b
 fileInput.addEventListener('change',e=>{const f=e.target.files[0]; if(!f) return; const rdr=new FileReader(); rdr.onload=()=>{try{const obj=JSON.parse(rdr.result); if(obj&&Array.isArray(obj.classes)) applyAllDataV2(obj); else if(obj&&obj.values) applyAllDataV1(obj); else throw new Error('schema tidak dikenal');}catch(err){console.error(err);alert('File tidak valid / schema tidak dikenal.');}}; rdr.readAsText(f); fileInput.value='';});
 
 /* ===== Kompat Sync ===== */
+function collectAllDataV2(){ pushToActive(); return {version:2,month_keys:MONTHS,months:{september:DATES.september.map(toLocalYMD),oktober:DATES.oktober.map(toLocalYMD),november:DATES.november.map(toLocalYMD)},active:ACTIVE_ID,classes:Object.values(CLASSES).map(c=>({id:c.id,name:c.name,absoluteOrder:c.absoluteOrder,people:c.people,values:c.values}))}; }
 window.collectAllData=function(){try{return collectAllDataV2();}catch(e){console.error(e);alert('Gagal menyiapkan data untuk Sync.');return null;}};
 window.applyAllData=function(obj){try{if(obj&&Array.isArray(obj.classes)) applyAllDataV2(obj); else if(obj&&obj.values) applyAllDataV1(obj); else throw new Error('Schema tidak dikenal'); renderAll(); return true;}catch(e){console.error(e);alert('Data dari Sync tidak cocok.');return false;}};
 </script>
