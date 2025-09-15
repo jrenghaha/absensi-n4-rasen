@@ -17,8 +17,14 @@
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial}
   .wrap{padding:16px}
   h1{margin:0 0 8px;font-size:1.7rem}
+
+  /* bar manajemen kelas */
+  .classbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 4px}
+  .classbar select, .classbar button{border:1px solid var(--border);background:#fff;color:var(--text);padding:8px 12px;border-radius:10px;font-weight:600}
+  .classbar .danger{border-color:#b91c1c;color:#b91c1c}
+
   .titlebar{display:flex;gap:10px;align-items:center;margin:8px 0 6px}
-  .title-input{flex:1;max-width:480px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-weight:700;background:#fff;color:var(--text)}
+  .title-input{flex:1;max-width:520px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-weight:700;background:#fff;color:var(--text)}
   .subtitle{color:var(--muted);margin-bottom:10px}
   .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
   select,button,input{border:1px solid var(--border);background:#fff;color:var(--text);padding:8px 12px;border-radius:10px;font-weight:600}
@@ -77,7 +83,7 @@
   #printSummary .col-no{width:36px}
 
   @media print{
-    .toolbar,.note,.subtitle,.titlebar,.table-wrap,h1{display:none !important}
+    .classbar,.toolbar,.note,.subtitle,.titlebar,h1,.table-wrap{display:none !important}
     #printSummary{display:block !important}
     body{background:#fff}
   }
@@ -110,11 +116,20 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Absensi Kelas N4 Rasen — Sep–Nov 2025</h1>
+  <h1>Absensi</h1>
+
+  <!-- Manajemen kelas -->
+  <div class="classbar">
+    <label for="classSel"><b>Kelas:</b></label>
+    <select id="classSel"></select>
+    <button id="btnNewClass">Kelas Baru</button>
+    <button id="btnDupClass">Duplikat</button>
+    <button class="danger" id="btnDelClass">Hapus</button>
+  </div>
 
   <div class="titlebar">
-    <label for="titleInput">Judul Kelas:</label>
-    <input id="titleInput" class="title-input" placeholder="Kelas N4 Rasen" />
+    <label for="titleInput">Nama kelas aktif:</label>
+    <input id="titleInput" class="title-input" placeholder="Nama kelas…" />
   </div>
 
   <div class="subtitle">
@@ -179,7 +194,7 @@
   </div>
 </div>
 
-<!-- ===== Modals ===== -->
+<!-- ===== Modals (order, clear, print) ===== -->
 <div class="modal-backdrop" id="printModal">
   <div class="modal">
     <header>Pilih urutan untuk rekap cetak</header>
@@ -218,81 +233,142 @@
 </div>
 
 <script>
-/* ========= Konstanta & util ========= */
-let TITLE = 'Kelas N4 Rasen';
-
-const ABSOLUTE_ORDER = [
-  "ZASKIA AMILA","VANIA PUTRI TARISA","AIFI DEWI ANGGRAINI","SAVIRA ALMAS NUR ARIFIN",
-  "SYAKILLA MAGHFIRUHA","MELDA DWI ENIKE","FERDIAN FARREL KRISTIAWAN","AHMAD NUR MUJAHIDIN",
-  "TAUFIQ HIDAYAT","IMEL BR SIMBOLON","YULIASTRI PATANDUK","FRANCISKUS SIMAMORA",
-  "VELIN FARDENCITA","RICHIE RAJASWA WIBOWO","LINDA NUR'AINI","WIDYA NIDYA AMELIA",
-  "YESITA DYANING PRASANTI","RIYAN DWI AGATA"
-].map(n=>n.trim().toUpperCase());
-
-let PEOPLE = [
-  "ZASKIA AMILA","VANIA PUTRI TARISA","AIFI DEWI ANGGRAINI","SAVIRA ALMAS NUR ARIFIN",
-  "SYAKILLA MAGHFIRUHA","MELDA DWI ENIKE","FERDIAN FARREL KRISTIAWAN","AHMAD NUR MUJAHIDIN",
-  "TAUFIQ HIDAYAT","IMEL BR SIMBOLON","YULIASTRI PATANDUK","FRANCISKUS SIMAMORA",
-  "VELIN FARDENCITA","RICHIE RAJASWA WIBOWO","LINDA NUR'AINI","WIDYA NIDYA AMELIA",
-  "YESITA DYANING PRASANTI","RIYAN DWI AGATA"
-].map(n=>({name:n}));
-
-const rangeDates=(y,m)=>{const first=new Date(y,m,1),last=new Date(y,m+1,0),arr=[];for(let d=new Date(first);d<=last;d.setDate(d.getDate()+1))arr.push(new Date(d));return arr;};
-const DATES={
-  september:rangeDates(2025,8),
-  oktober:  rangeDates(2025,9),
-  november: rangeDates(2025,10)
-};
+/* =================== UTIL & KONST =================== */
 const MONTHS = ['september','oktober','november'];
+const rangeDates=(y,m)=>{const f=new Date(y,m,1),l=new Date(y,m+1,0),arr=[];for(let d=new Date(f);d<=l;d.setDate(d.getDate()+1))arr.push(new Date(d));return arr;};
+const DATES={september:rangeDates(2025,8),oktober:rangeDates(2025,9),november:rangeDates(2025,10)};
+const isSunday=d=>d.getDay()===0, isSaturday=d=>d.getDay()===6, isWeekend=d=>isSunday(d)||isSaturday(d);
+const needsTaisouWeekday=d=>[2,4].includes(d.getDay()); // Tue/Thu
+const toLocalYMD=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtMonth=d=>d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+const fmtDay=d=>`${d.toLocaleDateString('id-ID',{day:'2-digit'})}<br>${d.toLocaleDateString('id-ID',{weekday:'short'})}`;
+const deepClone=o=>JSON.parse(JSON.stringify(o));
+const slug=s=>s.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
 
-// DATA[month][row][col] = { a: '', t: '', s: null }
-let DATA = {
-  september: PEOPLE.map(()=> DATES.september.map(()=>({a:'',t:'',s:null})) ),
-  oktober:   PEOPLE.map(()=> DATES.oktober.map(()=>({a:'',t:'',s:null})) ),
-  november:  PEOPLE.map(()=> DATES.november.map(()=>({a:'',t:'',s:null})) )
-};
+/* =================== STATE MULTI-KELAS =================== */
+let CLASSES = {};        // id -> {id,name,absoluteOrder,people,values}
+let ACTIVE_ID = null;
 
+// default kelas pertama (isi sesuai versi sebelumnya)
+(function initDefault(){
+  const defaultNames = [
+    "ZASKIA AMILA","VANIA PUTRI TARISA","AIFI DEWI ANGGRAINI","SAVIRA ALMAS NUR ARIFIN",
+    "SYAKILLA MAGHFIRUHA","MELDA DWI ENIKE","FERDIAN FARREL KRISTIAWAN","AHMAD NUR MUJAHIDIN",
+    "TAUFIQ HIDAYAT","IMEL BR SIMBOLON","YULIASTRI PATANDUK","FRANCISKUS SIMAMORA",
+    "VELIN FARDENCITA","RICHIE RAJASWA WIBOWO","LINDA NUR'AINI","WIDYA NIDYA AMELIA",
+    "YESITA DYANING PRASANTI","RIYAN DWI AGATA"
+  ];
+  const people = defaultNames.map(n=>({name:n}));
+  const absoluteOrder = defaultNames.map(n=>n.toUpperCase());
+  const values = {
+    september: people.map(()=> DATES.september.map(()=>({a:'',t:'',s:null}))),
+    oktober:   people.map(()=> DATES.oktober.map(()=>({a:'',t:'',s:null}))),
+    november:  people.map(()=> DATES.november.map(()=>({a:'',t:'',s:null}))),
+  };
+  const id = 'n4-rasen';
+  CLASSES[id] = {id, name:'Kelas N4 Rasen', absoluteOrder, people, values};
+  ACTIVE_ID = id;
+})();
+
+const classSel = document.getElementById('classSel');
 const titleInput=document.getElementById('titleInput');
-const monthSel=document.getElementById('monthSel');
+
+/* ========== BIND GLOBALS (agar kode lama tetap jalan) ========== */
+let TITLE='', ABSOLUTE_ORDER=[], PEOPLE=[], DATA={};
+function pullFromActive(){
+  const C = CLASSES[ACTIVE_ID];
+  TITLE = C.name;
+  ABSOLUTE_ORDER = C.absoluteOrder;
+  PEOPLE = C.people;
+  DATA = C.values;
+  titleInput.value = TITLE;
+}
+function pushToActive(){
+  const C = CLASSES[ACTIVE_ID];
+  C.name = TITLE;
+  C.absoluteOrder = ABSOLUTE_ORDER;
+  C.people = PEOPLE;
+  C.values = DATA;
+}
+
+/* =================== RENDER KELAS SELECTOR =================== */
+function refreshClassSelector(){
+  classSel.innerHTML = '';
+  Object.values(CLASSES).forEach(c=>{
+    const opt=document.createElement('option'); opt.value=c.id; opt.textContent=c.name; classSel.appendChild(opt);
+  });
+  classSel.value = ACTIVE_ID;
+  pullFromActive();
+}
+refreshClassSelector();
+
+/* =================== UI HANDLERS KELAS =================== */
+function newClass(){
+  let name = prompt('Nama kelas baru:', 'Kelas Baru');
+  if(!name) return;
+  const idBase = slug(name)||'kelas';
+  let id=idBase, i=1; while(CLASSES[id]) id=idBase+'-'+(i++);
+  const people=[]; const values={september:[],oktober:[],november:[]};
+  CLASSES[id] = {id, name, absoluteOrder:[], people, values};
+  ACTIVE_ID = id;
+  refreshClassSelector(); renderAll();
+}
+function dupClass(){
+  const C = CLASSES[ACTIVE_ID];
+  let name = prompt('Nama duplikat kelas:', C.name+' (Copy)');
+  if(!name) return;
+  const idBase = slug(name)||'kelas'; let id=idBase, i=1; while(CLASSES[id]) id=idBase+'-'+(i++);
+  CLASSES[id] = {id, name, absoluteOrder:deepClone(C.absoluteOrder), people:deepClone(C.people), values:deepClone(C.values)};
+  ACTIVE_ID = id;
+  refreshClassSelector(); renderAll();
+}
+function delClass(){
+  const keys = Object.keys(CLASSES);
+  if(keys.length<=1){ alert('Minimal harus ada 1 kelas.'); return; }
+  const ok = confirm('Hapus kelas "'+CLASSES[ACTIVE_ID].name+'"?');
+  if(!ok) return;
+  delete CLASSES[ACTIVE_ID];
+  ACTIVE_ID = Object.keys(CLASSES)[0];
+  refreshClassSelector(); renderAll();
+}
+classSel.addEventListener('change',()=>{ ACTIVE_ID = classSel.value; pullFromActive(); renderAll(); });
+document.getElementById('btnNewClass').addEventListener('click', newClass);
+document.getElementById('btnDupClass').addEventListener('click', dupClass);
+document.getElementById('btnDelClass').addEventListener('click', delClass);
+
+titleInput.addEventListener('input',()=>{ TITLE=titleInput.value; pushToActive(); refreshClassSelector(); });
+
+/* =================== ABSENSI TABLE (kode lama disesuaikan) =================== */
 const thead=document.getElementById('thead');
 const tbody=document.getElementById('tbody');
+const monthSel=document.getElementById('monthSel');
 
-const fmtMonth=d=>d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
-const fmtDay=d=>{const day=d.toLocaleDateString('id-ID',{day:'2-digit'});const wk=d.toLocaleDateString('id-ID',{weekday:'short'});return `${day}<br>${wk}`;};
-const isSunday=d=>d.getDay()===0;
-const isSaturday=d=>d.getDay()===6;
-const isWeekend=d=>isSunday(d)||isSaturday(d);
-const needsTaisouWeekday=d=>[2,4].includes(d.getDay()); // Tue/Thu
-const toLocalYMD=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`;};
+const applyTDColor=(td,val)=>{ td.classList.remove('sakit','alpa','izin','han');
+  if(val==='sakit') td.classList.add('sakit'); else if(val==='alpa') td.classList.add('alpa');
+  else if(val==='izin') td.classList.add('izin'); else if(val==='半') td.classList.add('han');
+};
+const setScoreVisual=(el,raw)=>{ const n=(raw===null||raw==='')?null:Number(raw); if(n!==null && !isNaN(n) && n<70) el.classList.add('low-score'); else el.classList.remove('low-score'); };
 
-/* ========= Header ========= */
 function buildHeader(monthKey){
   thead.innerHTML='';
   const dates=DATES[monthKey];
-  const tr1=document.createElement('tr');
-  const tr2=document.createElement('tr');
+  const tr1=document.createElement('tr'); const tr2=document.createElement('tr');
 
-  const thNo=document.createElement('th'); thNo.className='sticky no'; thNo.textContent='No.'; thNo.rowSpan=2; tr1.appendChild(thNo);
-  const thName=document.createElement('th'); thName.className='sticky name'; thName.textContent='Nama Siswa'; thName.rowSpan=2; tr1.appendChild(thName);
+  const thNo=document.createElement('th'); thNo.className='sticky no'; thNo.rowSpan=2; thNo.textContent='No.'; tr1.appendChild(thNo);
+  const thName=document.createElement('th'); thName.className='sticky name'; thName.rowSpan=2; thName.textContent='Nama Siswa'; tr1.appendChild(thName);
 
   const thMonth=document.createElement('th'); thMonth.colSpan=dates.length+8; thMonth.textContent=fmtMonth(dates[0]); tr1.appendChild(thMonth);
 
   for(let cIdx=0;cIdx<dates.length;cIdx++){
-    const d=dates[cIdx];
-    const th=document.createElement('th'); th.className='date-head';
-    th.innerHTML=fmtDay(d);
+    const d=dates[cIdx]; const th=document.createElement('th'); th.className='date-head'; th.innerHTML=fmtDay(d);
     if(isWeekend(d)) th.classList.add('holiday');
 
     if(!isWeekend(d)){
-      const del=document.createElement('button'); del.className='mini-del'; del.textContent='🗑';
-      del.title='Hapus nilai/absensi di tanggal ini';
+      const del=document.createElement('button'); del.className='mini-del'; del.textContent='🗑'; del.title='Hapus nilai/absensi di tanggal ini';
       del.addEventListener('click', ()=> openClearDayModal(monthKey, cIdx));
-      th.appendChild(del);
-
-      const plus=document.createElement('button'); plus.className='mini-btn'; plus.textContent='＋';
-      plus.title='Tambah Nilai Otomatis (Mutlak / Abjad)';
+      const plus=document.createElement('button'); plus.className='mini-btn'; plus.textContent='＋'; plus.title='Tambah Nilai Otomatis (Mutlak / Abjad)';
       plus.addEventListener('click', ()=> bulkFillForDate(monthKey, cIdx));
-      th.appendChild(plus);
+      th.appendChild(del); th.appendChild(plus);
     }
     tr2.appendChild(th);
   }
@@ -304,19 +380,6 @@ function buildHeader(monthKey){
   thead.appendChild(tr1); thead.appendChild(tr2);
 }
 
-/* ========= Cell builders ========= */
-function applyTDColor(td,val){
-  td.classList.remove('sakit','alpa','izin','han');
-  if(val==='sakit') td.classList.add('sakit');
-  else if(val==='alpa') td.classList.add('alpa');
-  else if(val==='izin') td.classList.add('izin');
-  else if(val==='半') td.classList.add('han');
-}
-function setScoreVisual(inputEl, raw){
-  const n=(raw===null||raw==='')?null:Number(raw);
-  if(n!==null && !isNaN(n) && n<70) inputEl.classList.add('low-score');
-  else inputEl.classList.remove('low-score');
-}
 function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
   if(isSunday(date)){ td.innerHTML='<span class="muted">—</span>'; return; }
 
@@ -325,8 +388,7 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
     const wrap=document.createElement('div'); wrap.className='cell-inline';
     const selT=document.createElement('select'); selT.className='cell';
     ['', 'hadir taisou', 'izin taisou', 'tidak hadir taisou'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selT.appendChild(o);});
-    selT.value=obj.t||'';
-    selT.addEventListener('change',()=>{obj.t=selT.value;});
+    selT.value=obj.t||''; selT.addEventListener('change',()=>{obj.t=selT.value;});
     wrap.appendChild(selT); td.appendChild(wrap); return;
   }
 
@@ -334,56 +396,38 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
 
   const selMain=document.createElement('select'); selMain.className='cell';
   ['','hadir','sakit','izin','alpa','半'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selMain.appendChild(o);});
-  selMain.value=obj.a||'';
-  selMain.addEventListener('change',()=>{obj.a=selMain.value; applyTDColor(td,obj.a); updateTotalsCells(td.parentElement,monthKey,rIdx);});
+  selMain.value=obj.a||''; selMain.addEventListener('change',()=>{obj.a=selMain.value; applyTDColor(td,obj.a); updateTotalsCells(td.parentElement,monthKey,rIdx);});
   wrap.appendChild(selMain);
 
   if(needsTaisouWeekday(date)){
     const selT=document.createElement('select'); selT.className='cell';
     ['', 'hadir taisou', 'izin taisou', 'tidak hadir taisou'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selT.appendChild(o);});
-    selT.value=obj.t||'';
-    selT.addEventListener('change',()=>{obj.t=selT.value; updateTotalsCells(td.parentElement,monthKey,rIdx);});
+    selT.value=obj.t||''; selT.addEventListener('change',()=>{obj.t=selT.value; updateTotalsCells(td.parentElement,monthKey,rIdx);});
     wrap.appendChild(selT);
   }
 
-  const score=document.createElement('input');
-  score.type='number'; score.className='score'; score.min='0'; score.max='100'; score.step='1'; score.placeholder='Nilai';
+  const score=document.createElement('input'); score.type='number'; score.className='score'; score.min='0'; score.max='100'; score.step='1'; score.placeholder='Nilai';
   score.value=(obj.s===null||obj.s==='')?'':obj.s;
-
   const handleScore=()=>{
-    let v=score.value!=null?String(score.value).trim():'';
+    let v=String(score.value||'').trim();
     if(v===''){ obj.s=null; setScoreVisual(score,null); }
     else{
       let n=Number(v); if(isNaN(n)) n=null; else{ if(n<0) n=0; if(n>100) n=100; }
-      obj.s=n;
-      if(n!==null){ obj.a='hadir'; selMain.value='hadir'; applyTDColor(td,'hadir'); }
+      obj.s=n; if(n!==null){ obj.a='hadir'; selMain.value='hadir'; applyTDColor(td,'hadir'); }
       setScoreVisual(score,n);
-    }
-    updateTotalsCells(td.parentElement,monthKey,rIdx);
+    } updateTotalsCells(td.parentElement,monthKey,rIdx);
   };
   ['input','change','keyup','blur'].forEach(evt=>score.addEventListener(evt,handleScore));
-
-  wrap.appendChild(score);
-  td.appendChild(wrap);
-
-  setScoreVisual(score,obj.s);
-  applyTDColor(td,obj.a);
+  wrap.appendChild(score); td.appendChild(wrap);
+  setScoreVisual(score,obj.s); applyTDColor(td,obj.a);
 }
 
-/* ========= Totals & body ========= */
 function countTotals(rowObjs, monthKey){
   let sakit=0,hadir=0,alpa=0,izin=0, izinTai=0, tdkTai=0, hanCnt=0, sum=0, cnt=0;
   for(let cIdx=0;cIdx<rowObjs.length;cIdx++){
     const o=rowObjs[cIdx];
-    if(o.a==='sakit') sakit++;
-    else if(o.a==='hadir') hadir++;
-    else if(o.a==='alpa') alpa++;
-    else if(o.a==='izin') izin++;
-    else if(o.a==='半')   hanCnt++;
-
-    if(o.t==='izin taisou') izinTai++;
-    if(o.t==='tidak hadir taisou') tdkTai++;
-
+    if(o.a==='sakit') sakit++; else if(o.a==='hadir') hadir++; else if(o.a==='alpa') alpa++; else if(o.a==='izin') izin++; else if(o.a==='半') hanCnt++;
+    if(o.t==='izin taisou') izinTai++; if(o.t==='tidak hadir taisou') tdkTai++;
     const d = DATES[monthKey][cIdx];
     if(!isWeekend(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; }
   }
@@ -393,75 +437,34 @@ function countTotals(rowObjs, monthKey){
 function updateTotalsCells(tr, monthKey, rIdx){
   const t=countTotals(DATA[monthKey][rIdx], monthKey);
   const tds=tr.querySelectorAll('.totals-cell');
-  tds[0].textContent=t.hadir;
-  tds[1].textContent=t.sakit;
-  tds[2].textContent=t.izin;
-  tds[3].textContent=t.alpa;
-  tds[4].textContent=t.hanCnt;
-  tds[5].textContent=t.izinTai;
-  tds[6].textContent=t.tdkTai;
-  tds[7].textContent=(t.avg===null?'':t.avg.toFixed(1));
-  if(t.avg!==null && t.avg<70) tds[7].classList.add('avg-low'); else tds[7].classList.remove('avg-low');
+  tds[0].textContent=t.hadir; tds[1].textContent=t.sakit; tds[2].textContent=t.izin; tds[3].textContent=t.alpa;
+  tds[4].textContent=t.hanCnt; tds[5].textContent=t.izinTai; tds[6].textContent=t.tdkTai;
+  tds[7].textContent=(t.avg===null?'':t.avg.toFixed(1)); if(t.avg!==null && t.avg<70) tds[7].classList.add('avg-low'); else tds[7].classList.remove('avg-low');
 }
 function buildBody(monthKey){
   tbody.innerHTML='';
   const dates=DATES[monthKey];
   PEOPLE.forEach((person,rIdx)=>{
     const tr=document.createElement('tr');
-
     const tdNo=document.createElement('td'); tdNo.className='sticky no'; tdNo.textContent=rIdx+1; tr.appendChild(tdNo);
 
     const tdName=document.createElement('td'); tdName.className='sticky name';
     const nameWrap=document.createElement('div'); nameWrap.className='name-box';
     const input=document.createElement('input'); input.className='name-input'; input.value=person.name;
-    input.addEventListener('change',()=>{person.name=input.value;});
+    input.addEventListener('change',()=>{person.name=input.value; pushToActive();});
     const delBtn=document.createElement('button'); delBtn.className='remove-btn danger'; delBtn.textContent='Hapus';
     delBtn.addEventListener('click',()=>{ if(confirm(`Hapus ${person.name}?`)) removePerson(rIdx); });
     nameWrap.appendChild(input); nameWrap.appendChild(delBtn);
-    tdName.appendChild(nameWrap);
+    tdName.appendChild(nameWrap); tr.appendChild(tdName);
 
-    /* Auto nilai per siswa */
-    const bulk = document.createElement('div'); bulk.className='bulk-box';
-    const row1 = document.createElement('div'); row1.className='bulk-row';
-    const row2 = document.createElement('div'); row2.className='bulk-row';
-
-    const lbl = document.createElement('span'); lbl.textContent = 'Auto nilai:';
-    const inFrom = document.createElement('input'); inFrom.type='number'; inFrom.min='1'; inFrom.placeholder='dari';
-    const inTo = document.createElement('input'); inTo.type='number'; inTo.min='1'; inTo.placeholder='sampai';
-    row1.appendChild(lbl); row1.appendChild(inFrom); row1.appendChild(inTo);
-
-    const inText = document.createElement('input'); inText.type='text'; inText.placeholder='8-11: 97 89 90 87  / atau nilai…';
-    const btnApply = document.createElement('button'); btnApply.textContent='Isi Nilai';
-
-    const applyFunc = ()=>{
-      const monthKey = monthSel.value;
-      const parsed = parseBulkInput(inText.value);
-      let sDay = inFrom.value ? Number(inFrom.value) : null;
-      let eDay = inTo.value ? Number(inTo.value) : null;
-      if (parsed.range) { sDay = parsed.range[0]; eDay = parsed.range[1]; }
-      if (sDay==null || eDay==null) { alert('Pilih rentang tanggal (dari-sampai) atau gunakan format "8-11: ...".'); return; }
-      if (sDay > eDay) [sDay, eDay] = [eDay, sDay];
-      fillRowScores(rIdx, monthKey, sDay, eDay, parsed.scores);
-      renderAll();
-    };
-    btnApply.addEventListener('click', applyFunc);
-    inText.addEventListener('keypress', e=>{ if(e.key==='Enter'){ e.preventDefault(); applyFunc(); } });
-
-    row2.appendChild(inText); row2.appendChild(btnApply);
-    bulk.appendChild(row1); bulk.appendChild(row2);
-    tdName.appendChild(bulk);
-
-    tr.appendChild(tdName);
-
-    DATA[monthKey][rIdx].forEach((obj,cIdx)=>{
+    DATA[monthKey][rIdx]?.forEach((obj,cIdx)=>{
       const td=document.createElement('td'); const date=dates[cIdx];
       if(isWeekend(date)) td.classList.add('holiday');
-      buildCellContent(td,obj,rIdx,cIdx,monthKey,date);
-      tr.appendChild(td);
+      buildCellContent(td,obj,rIdx,cIdx,monthKey,date); tr.appendChild(td);
     });
 
-    ['hadir','sakit','izin','alpa','han','izinTai','tdkTai','avg'].forEach(key=>{
-      const td=document.createElement('td'); td.className='totals-cell'+(key==='avg'?' avg-col':''); tr.appendChild(td);
+    ['hadir','sakit','izin','alpa','han','izinTai','tdkTai','avg'].forEach(k=>{
+      const td=document.createElement('td'); td.className='totals-cell'+(k==='avg'?' avg-col':''); tr.appendChild(td);
     });
 
     tbody.appendChild(tr);
@@ -469,72 +472,40 @@ function buildBody(monthKey){
   });
 }
 
-/* ========= Helper isian nilai ========= */
-function parseBulkInput(txt) {
-  if (!txt) return {range: null, scores: []};
-  const m = txt.match(/^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(.+)$/);
-  if (m) {
-    const scores = m[3].trim().split(/[\s,;]+/).map(s => Number(s)).filter(n => !isNaN(n));
-    return {range: [Number(m[1]), Number(m[2])], scores};
-  }
-  const scores = txt.trim().split(/[\s,;]+/).map(s => Number(s)).filter(n => !isNaN(n));
-  return {range: null, scores};
+/* ====== helper isi nilai per siswa ====== */
+function parseBulkInput(txt){ if(!txt) return {range:null,scores:[]};
+  const m=txt.match(/^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(.+)$/); if(m){const scores=m[3].trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));return{range:[+m[1],+m[2]],scores};}
+  const scores=txt.trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n)); return {range:null,scores};
 }
-function eligibleDateIndices(monthKey, startDay, endDay) {
-  const arr = [];
-  const dates = DATES[monthKey];
-  for (let i = 0; i < dates.length; i++) {
-    const d = dates[i];
-    const day = d.getDate();
-    if (startDay != null && endDay != null) {
-      if (day < startDay || day > endDay) continue;
-    }
-    if (isSunday(d) || isSaturday(d)) continue;
-    arr.push(i);
-  }
+function eligibleDateIndices(monthKey, sDay, eDay){
+  const arr=[]; const dates=DATES[monthKey];
+  for(let i=0;i<dates.length;i++){ const d=dates[i], day=d.getDate(); if(sDay!=null&&eDay!=null){ if(day<sDay||day>eDay) continue;} if(isWeekend(d)) continue; arr.push(i); }
   return arr;
 }
-function fillRowScores(rowIdx, monthKey, startDay, endDay, scores) {
-  const idxs = eligibleDateIndices(monthKey, startDay, endDay);
-  let k = 0;
-  for (const cIdx of idxs) {
-    if (k >= scores.length) break;
-    const n = Number(scores[k++]);
-    if (isNaN(n)) continue;
-    const clamped = Math.max(0, Math.min(100, n));
-    const cell = DATA[monthKey][rowIdx][cIdx];
-    cell.s = clamped;
-    cell.a = 'hadir';
+function fillRowScores(rowIdx, monthKey, sDay, eDay, scores){
+  const idxs=eligibleDateIndices(monthKey,sDay,eDay); let k=0;
+  for(const cIdx of idxs){ if(k>=scores.length) break; let n=Number(scores[k++]); if(isNaN(n)) continue; n=Math.max(0,Math.min(100,n));
+    const cell=DATA[monthKey][rowIdx][cIdx]; cell.s=n; cell.a='hadir';
   }
 }
 
-/* ========= Modal Order untuk tombol ＋ ========= */
-const orderModal = document.getElementById('orderModal');
-let orderResolve = null;
-function openOrderModal(){ orderModal.style.display='flex'; return new Promise(res=>orderResolve=res); }
-function closeOrderModal(){ orderModal.style.display='none'; orderResolve=null; }
-document.getElementById('orderCancel').addEventListener('click', ()=>{ orderResolve && orderResolve(null); closeOrderModal(); });
-document.getElementById('orderMutlak').addEventListener('click', ()=>{ orderResolve && orderResolve('mutlak'); closeOrderModal(); });
-document.getElementById('orderAbjad').addEventListener('click', ()=>{ orderResolve && orderResolve('abjad'); closeOrderModal(); });
+/* ====== modal urutan tombol ＋ ====== */
+const orderModal=document.getElementById('orderModal'); let orderResolve=null;
+const openOrderModal=()=>{orderModal.style.display='flex';return new Promise(res=>orderResolve=res)};
+const closeOrderModal=()=>{orderModal.style.display='none';orderResolve=null};
+document.getElementById('orderCancel').addEventListener('click',()=>{orderResolve&&orderResolve(null);closeOrderModal()});
+document.getElementById('orderMutlak').addEventListener('click',()=>{orderResolve&&orderResolve('mutlak');closeOrderModal()});
+document.getElementById('orderAbjad').addEventListener('click',()=>{orderResolve&&orderResolve('abjad');closeOrderModal()});
 
-/* ========= Bulk isi nilai PER TANGGAL ========= */
-async function bulkFillForDate(monKey, cIdx){
-  const d = DATES[monKey][cIdx];
-  if (isWeekend(d)) { alert('Tidak bisa mengisi nilai otomatis pada Sabtu/Minggu.'); return; }
+async function bulkFillForDate(monKey,cIdx){
+  const d=DATES[monKey][cIdx]; if(isWeekend(d)){alert('Tidak bisa mengisi nilai otomatis pada Sabtu/Minggu.');return;}
+  const mode=await openOrderModal(); if(!mode) return;
 
-  const mode = await openOrderModal(); // 'mutlak' | 'abjad' | null
-  if (!mode) return;
+  let orderUpper=[];
+  if(mode==='mutlak'){ orderUpper = (ABSOLUTE_ORDER||[]).slice(); }
+  else{ orderUpper = PEOPLE.map(p=>(p.name||'').trim().toUpperCase()).sort((a,b)=>a.localeCompare(b,'id',{sensitivity:'base'})); }
 
-  let orderNamesUpper = [];
-  if(mode === 'mutlak'){
-    orderNamesUpper = ABSOLUTE_ORDER.slice();
-  } else {
-    orderNamesUpper = PEOPLE.map(p => (p.name||'').trim().toUpperCase())
-                            .sort((a,b)=>a.localeCompare(b,'id',{sensitivity:'base'}));
-  }
-
-  const sample =
-`89
+  const sample = `89
 84
 87
 87
@@ -552,154 +523,145 @@ async function bulkFillForDate(monKey, cIdx){
 77
 74
 74`;
-  const tgl = d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-  const inText = prompt(`Tempel ${orderNamesUpper.length} nilai berurutan sesuai urutan ${mode.toUpperCase()} untuk ${tgl}:`, sample);
-  if(inText==null) return;
+  const tgl=d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  const inText=prompt(`Tempel ${orderUpper.length} nilai urut (${mode.toUpperCase()}) untuk ${tgl}:`, sample); if(inText==null) return;
 
-  const arr = String(inText).trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));
-  if(arr.length !== orderNamesUpper.length){
-    alert(`Butuh ${orderNamesUpper.length} nilai. Kamu memasukkan ${arr.length}.`);
-    return;
-  }
+  const arr=String(inText).trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));
+  if(arr.length!==orderUpper.length){ alert(`Butuh ${orderUpper.length} nilai, kamu memasukkan ${arr.length}.`); return; }
 
-  const nameToRow = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
-  for(let i=0;i<orderNamesUpper.length;i++){
-    const nm = orderNamesUpper[i];
-    const rowIdx = nameToRow.get(nm);
-    if(rowIdx == null) continue;
-    const n = Math.max(0, Math.min(100, arr[i]));
-    const cell = DATA[monKey][rowIdx][cIdx];
-    cell.s = n;
-    cell.a = 'hadir';
-  }
+  const nameToRow=new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(),i]));
+  for(let i=0;i<orderUpper.length;i++){ const nm=orderUpper[i]; const rIdx=nameToRow.get(nm); if(rIdx==null) continue; const n=Math.max(0,Math.min(100,arr[i])); const cell=DATA[monKey][rIdx][cIdx]; cell.s=n; cell.a='hadir'; }
   renderAll();
 }
 
-/* ========= Clear Day ========= */
-let pendingClear = null; // {monKey, cIdx}
-const clearDayModal = document.getElementById('clearDayModal');
-const clearDayLabel = document.getElementById('clearDayLabel');
-function openClearDayModal(monKey, cIdx){
-  pendingClear = {monKey, cIdx};
-  const d = DATES[monKey][cIdx];
-  clearDayLabel.textContent = 'Tanggal: ' + d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-  clearDayModal.style.display='flex';
-}
-function closeClearDayModal(){ clearDayModal.style.display='none'; pendingClear=null; }
+/* ====== clear day ====== */
+let pendingClear=null; const clearDayModal=document.getElementById('clearDayModal'); const clearDayLabel=document.getElementById('clearDayLabel');
+function openClearDayModal(monKey,cIdx){ pendingClear={monKey,cIdx}; const d=DATES[monKey][cIdx]; clearDayLabel.textContent='Tanggal: '+d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}); clearDayModal.style.display='flex'; }
+const closeClearDayModal=()=>{clearDayModal.style.display='none';pendingClear=null};
+document.getElementById('clearDayCancel').addEventListener('click',closeClearDayModal);
+document.getElementById('clearDayScores').addEventListener('click',()=>{ if(!pendingClear) return; const {monKey,cIdx}=pendingClear; for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx].s=null; } closeClearDayModal(); renderAll(); });
+document.getElementById('clearDayBoth').addEventListener('click',()=>{ if(!pendingClear) return; const {monKey,cIdx}=pendingClear; for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx]={a:'',t:'',s:null}; } closeClearDayModal(); renderAll(); });
 
-document.getElementById('clearDayCancel').addEventListener('click', closeClearDayModal);
-document.getElementById('clearDayScores').addEventListener('click', ()=>{
-  if(!pendingClear) return;
-  const {monKey,cIdx}=pendingClear;
-  for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx].s=null; }
-  closeClearDayModal(); renderAll();
-});
-document.getElementById('clearDayBoth').addEventListener('click', ()=>{
-  if(!pendingClear) return;
-  const {monKey,cIdx}=pendingClear;
-  for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx]={a:'',t:'',s:null}; }
-  closeClearDayModal(); renderAll();
-});
-
-/* ========= Print Summary ========= */
-const printModal = document.getElementById('printModal');
-function openPrintModal(){ printModal.style.display='flex'; }
-function closePrintModal(){ printModal.style.display='none'; }
-document.getElementById('btnPrint').addEventListener('click', openPrintModal);
-document.getElementById('printCancel').addEventListener('click', closePrintModal);
-document.getElementById('printOrderMutlak').addEventListener('click', ()=>{
-  buildPrintSummary('mutlak'); closePrintModal(); window.print();
-});
-document.getElementById('printOrderAbjad').addEventListener('click', ()=>{
-  buildPrintSummary('abjad'); closePrintModal(); window.print();
-});
-document.getElementById('printOrderRank').addEventListener('click', ()=>{
-  buildPrintSummary('rank'); closePrintModal(); window.print();
-});
+/* ====== PRINT ====== */
+const printModal=document.getElementById('printModal');
+const openPrintModal=()=>{printModal.style.display='flex'}; const closePrintModal=()=>{printModal.style.display='none'};
+document.getElementById('btnPrint').addEventListener('click',openPrintModal);
+document.getElementById('printCancel').addEventListener('click',closePrintModal);
+document.getElementById('printOrderMutlak').addEventListener('click',()=>{buildPrintSummary('mutlak');closePrintModal();window.print();});
+document.getElementById('printOrderAbjad').addEventListener('click',()=>{buildPrintSummary('abjad');closePrintModal();window.print();});
+document.getElementById('printOrderRank').addEventListener('click',()=>{buildPrintSummary('rank');closePrintModal();window.print();});
 
 function buildPrintSummary(orderMode){
-  const monthKey = monthSel.value;
-  const dates = DATES[monthKey];
-  const psTitle = document.getElementById('psTitle');
-  const psMeta  = document.getElementById('psMeta');
-  const psBody  = document.getElementById('psBody');
+  pushToActive();
+  const monthKey=monthSel.value, dates=DATES[monthKey];
+  const psTitle=document.getElementById('psTitle'); const psMeta=document.getElementById('psMeta'); const psBody=document.getElementById('psBody');
 
-  psTitle.textContent = (titleInput.value || 'Kelas N4 Rasen') + ' — Rekap ' + dates[0].toLocaleDateString('id-ID',{month:'long',year:'numeric'});
-  psMeta.textContent  =
-    'Urutan: ' + (
-      orderMode==='mutlak' ? 'Mutlak/Awal' :
-      orderMode==='abjad'  ? 'Abjad (A→Z)' :
-      'Ranking (rata-rata turun)'
-    ) + ' — Hanya nama, akumulasi, rata-rata nilai (hari kerja).';
+  psTitle.textContent = (TITLE || 'Kelas') + ' — Rekap ' + dates[0].toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+  psMeta.textContent = 'Urutan: '+(orderMode==='mutlak'?'Mutlak/Awal':orderMode==='abjad'?'Abjad (A→Z)':'Ranking (rata-rata turun)')+' — Hanya nama, akumulasi, rata-rata nilai (hari kerja).';
 
-  let orderIdx = [];
+  let orderIdx=[];
   if(orderMode==='mutlak'){
-    const mapNameToIdx = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
-    orderIdx = ABSOLUTE_ORDER
-      .map(nm => mapNameToIdx.has(nm) ? mapNameToIdx.get(nm) : null)
-      .filter(i => i!==null);
+    const map=new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(),i]));
+    orderIdx = (ABSOLUTE_ORDER||[]).map(nm=>map.has(nm)?map.get(nm):null).filter(i=>i!==null);
     for(let i=0;i<PEOPLE.length;i++){ if(!orderIdx.includes(i)) orderIdx.push(i); }
   }else if(orderMode==='abjad'){
     orderIdx = PEOPLE.map((p,i)=>[i,(p.name||'')]).sort((A,B)=>A[1].localeCompare(B[1],'id',{sensitivity:'base'})).map(x=>x[0]);
   }else{
-    orderIdx = PEOPLE.map((p,i)=>{
-      const t = countTotals(DATA[monthKey][i], monthKey);
-      const avg = (t.avg==null || isNaN(t.avg)) ? -Infinity : t.avg;
-      return {i, avg, name:(p.name||'')};
-    }).sort((A,B)=>{
-      if(B.avg!==A.avg) return B.avg - A.avg;
-      return A.name.localeCompare(B.name,'id',{sensitivity:'base'});
-    }).map(x=>x.i);
+    orderIdx = PEOPLE.map((p,i)=>{ const t=countTotals(DATA[monthKey][i],monthKey); const avg=(t.avg==null||isNaN(t.avg))?-Infinity:t.avg; return {i,avg,name:(p.name||'')}; })
+                     .sort((A,B)=> (B.avg!==A.avg)?(B.avg-A.avg):A.name.localeCompare(B.name,'id',{sensitivity:'base'}))
+                     .map(x=>x.i);
   }
 
-  psBody.innerHTML = '';
+  psBody.innerHTML='';
   for(let k=0;k<orderIdx.length;k++){
-    const r = orderIdx[k];
-    const t = countTotals(DATA[monthKey][r], monthKey);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${k+1}</td>
-      <td style="text-align:left">${PEOPLE[r].name||''}</td>
-      <td>${t.hadir}</td>
-      <td>${t.sakit}</td>
-      <td>${t.izin}</td>
-      <td>${t.alpa}</td>
-      <td>${t.hanCnt}</td>
-      <td>${t.izinTai}</td>
-      <td>${t.tdkTai}</td>
-      <td>${t.avg==null?'':t.avg.toFixed(1)}</td>`;
+    const r=orderIdx[k]; const t=countTotals(DATA[monthKey][r],monthKey);
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${k+1}</td><td style="text-align:left">${PEOPLE[r].name||''}</td>
+      <td>${t.hadir}</td><td>${t.sakit}</td><td>${t.izin}</td><td>${t.alpa}</td><td>${t.hanCnt}</td>
+      <td>${t.izinTai}</td><td>${t.tdkTai}</td><td>${t.avg==null?'':t.avg.toFixed(1)}</td>`;
     psBody.appendChild(tr);
   }
 }
 
-/* ========= Render & CRUD ========= */
-function renderAll(){ const key=monthSel.value; buildHeader(key); buildBody(key); }
+/* ====== RENDER & CRUD ====== */
+function renderAll(){ pushToActive(); const key=monthSel.value; ensureMatrixShape(); buildHeader(key); buildBody(key); }
+
+function ensureMatrixShape(){
+  // pastikan jumlah baris nilai = jumlah siswa
+  MONTHS.forEach(mon=>{
+    const rows = PEOPLE.length;
+    if(!Array.isArray(DATA[mon])) DATA[mon]=[];
+    while(DATA[mon].length<rows) DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null})));
+    while(DATA[mon].length>rows) DATA[mon].pop();
+  });
+}
 
 function clearAll(){
-  if(!confirm('Hapus SEMUA data termasuk NAMA?')) return;
-  PEOPLE=[];
-  DATA = {september:[], oktober:[], november:[]};
+  if(!confirm('Hapus SEMUA data termasuk NAMA pada kelas ini?')) return;
+  PEOPLE.length=0;
+  MONTHS.forEach(mon=>DATA[mon]=[]);
   renderAll();
 }
 
-/* ========= Export/Import JSON ========= */
-function collectAllData(){ return {
-  title:TITLE,
-  people:PEOPLE.map(p=>({name:p.name})),
-  dates:{
-    september:DATES.september.map(toLocalYMD),
-    oktober:  DATES.oktober.map(toLocalYMD),
-    november: DATES.november.map(toLocalYMD)
-  },
-  values:DATA, month:monthSel.value
-};}
+/* ====== Export/Import JSON (multi kelas) ====== */
+function collectAllDataV2(){
+  pushToActive();
+  return {
+    version:2,
+    month_keys:MONTHS,
+    months:{september:DATES.september.map(toLocalYMD),oktober:DATES.oktober.map(toLocalYMD),november:DATES.november.map(toLocalYMD)},
+    active:ACTIVE_ID,
+    classes:Object.values(CLASSES).map(c=>({id:c.id,name:c.name,absoluteOrder:c.absoluteOrder,people:c.people,values:c.values}))
+  };
+}
+function applyAllDataV1(obj){ // kompatibel file lama (single kelas)
+  const id = slug(obj.title||'Kelas')||'kelas';
+  CLASSES = {};
+  CLASSES[id] = {
+    id,
+    name: obj.title || 'Kelas',
+    absoluteOrder: (obj.people||[]).map(p=>(p.name||'').toUpperCase()),
+    people: (obj.people||[]).map(p=>({name:p.name||''})),
+    values: {september:[],oktober:[],november:[]}
+  };
+  ACTIVE_ID = id;
+  // konversi nilai
+  MONTHS.forEach(mon=>{
+    const cols=DATES[mon].length; const incoming=obj.values?.[mon]||[];
+    CLASSES[id].values[mon] = CLASSES[id].people.map((_,r)=>{
+      const src=incoming[r]||[]; const row=[]; for(let c=0;c<cols;c++){ row.push(coerceCell(mon,c,src[c])); } return row;
+    });
+  });
+  refreshClassSelector(); renderAll();
+}
+function applyAllDataV2(obj){ // multi kelas
+  const arr = Array.isArray(obj.classes)? obj.classes : [];
+  if(!arr.length) throw new Error('Tidak ada classes.');
+  CLASSES = {};
+  arr.forEach(c=>{
+    const id = c.id || slug(c.name||'kelas') || 'kelas';
+    CLASSES[id] = {
+      id, name: c.name || 'Kelas',
+      absoluteOrder: Array.isArray(c.absoluteOrder)? c.absoluteOrder : [],
+      people: Array.isArray(c.people)? c.people.map(p=>({name:p.name||''})) : [],
+      values: {september:[],oktober:[],november:[]}
+    };
+    MONTHS.forEach(mon=>{
+      const cols=DATES[mon].length; const incoming=c.values?.[mon]||[];
+      CLASSES[id].values[mon] = CLASSES[id].people.map((_,r)=>{
+        const src=incoming[r]||[]; const row=[]; for(let ci=0;ci<cols;ci++){ row.push(coerceCell(mon,ci,src[ci])); } return row;
+      });
+    });
+  });
+  ACTIVE_ID = obj.active && CLASSES[obj.active] ? obj.active : Object.keys(CLASSES)[0];
+  refreshClassSelector(); renderAll();
+}
 
 function coerceCell(mon, c, raw){
   const d = DATES[mon][c]; const weekend=(d.getDay()===0||d.getDay()===6);
   if (raw==null) return {a:'',t:'',s:null};
   if (typeof raw==='object'){
-    const a = raw.a || ''; const t = raw.t || ''; let s = (raw.s===undefined? null : raw.s);
-    if (weekend) s = null; return {a,t,s};
+    const a = raw.a || ''; const t = raw.t || ''; let s = (raw.s===undefined? null : raw.s); if(weekend) s=null; return {a,t,s};
   }
   let n = Number(raw);
   if (!isNaN(n)) return weekend ? {a:'',t:'',s:null} : {a:'hadir',t:'',s: Math.max(0, Math.min(100,n))};
@@ -707,86 +669,56 @@ function coerceCell(mon, c, raw){
   return {a:(allowed[txt]?txt:''), t:'', s:null};
 }
 
-function applyAllData(obj){
-  try{
-    if(!obj || !obj.values) throw new Error('struktur kosong');
-    TITLE = obj.title || TITLE; titleInput.value=TITLE;
-    if (Array.isArray(obj.people)) PEOPLE=obj.people.map(p=>({name:p.name||''}));
-    MONTHS.forEach(mon=>{
-      const cols=DATES[mon].length; const incoming=obj.values[mon];
-      if (!Array.isArray(incoming)) throw new Error('values.'+mon+' bukan array');
-      const rows=PEOPLE.length; const out=[];
-      for(let r=0;r<rows;r++){
-        const srcRow=incoming[r]||[]; const row=[];
-        for(let c=0;c<cols;c++){ row.push( coerceCell(mon,c,srcRow[c]) ); }
-        out.push(row);
-      }
-      DATA[mon]=out;
-    });
-    monthSel.value = (MONTHS.includes(obj.month)? obj.month : 'september');
-    renderAll();
-  }catch(e){
-    console.error(e);
-    alert('File tidak valid / schema beda. Pastikan memakai file JSON dari aplikasi ini.');
-  }
-}
+/* ====== NO-OP localStorage (tetap dimatikan) ====== */
+function saveToLocal(){} function loadFromLocal(){return false} function clearLocal(){}
 
-/* ====== NO-OP storage (dimatikan) ====== */
-function saveToLocal(){ /* dimatikan */ }
-function loadFromLocal(){ return false; }
-function clearLocal(){ /* dimatikan */ }
-
-/* ========= Sorting & CRUD ========= */
+/* ====== Sorting & CRUD ====== */
 function sortAZ(){
   const idxs=PEOPLE.map((_,i)=>i).sort((a,b)=>(PEOPLE[a].name||'').toLowerCase().localeCompare((PEOPLE[b].name||'').toLowerCase()));
-  PEOPLE=idxs.map(i=>PEOPLE[i]);
-  MONTHS.forEach(mon=>{DATA[mon]=idxs.map(i=>DATA[mon][i]);});
-  renderAll();
+  PEOPLE=idxs.map(i=>PEOPLE[i]); MONTHS.forEach(mon=>{DATA[mon]=idxs.map(i=>DATA[mon][i]);}); renderAll();
 }
 function sortMutlak(){
-  const mapNameToIdx = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
-  let idxs = ABSOLUTE_ORDER.map(nm => mapNameToIdx.has(nm) ? mapNameToIdx.get(nm) : null).filter(i => i !== null);
-  for (let i = 0; i < PEOPLE.length; i++) { if (!idxs.includes(i)) idxs.push(i); }
-  PEOPLE = idxs.map(i => PEOPLE[i]);
-  MONTHS.forEach(mon=>{ DATA[mon] = idxs.map(i => DATA[mon][i]); });
-  renderAll();
+  const map=new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(),i]));
+  let idxs=(ABSOLUTE_ORDER||[]).map(nm=>map.has(nm)?map.get(nm):null).filter(i=>i!==null);
+  for(let i=0;i<PEOPLE.length;i++){ if(!idxs.includes(i)) idxs.push(i); }
+  PEOPLE=idxs.map(i=>PEOPLE[i]); MONTHS.forEach(mon=>{DATA[mon]=idxs.map(i=>DATA[mon][i]);}); renderAll();
 }
 function addPerson(name){
-  if(!name) return;
-  PEOPLE.push({name});
-  MONTHS.forEach(mon=>{ DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null}))); });
+  name=name&&name.trim(); if(!name) return;
+  PEOPLE.push({name}); MONTHS.forEach(mon=>DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null}))));
   document.getElementById('newName').value=''; renderAll();
 }
 function removePerson(rIdx){
-  PEOPLE.splice(rIdx,1);
-  MONTHS.forEach(mon=>DATA[mon].splice(rIdx,1));
-  renderAll();
+  PEOPLE.splice(rIdx,1); MONTHS.forEach(mon=>DATA[mon].splice(rIdx,1)); renderAll();
 }
 
-/* ========= Init & events ========= */
-titleInput.value=TITLE; titleInput.addEventListener('input',()=>{TITLE=titleInput.value;});
-renderAll();
+/* ====== Init & events ====== */
+pullFromActive(); renderAll();
 
 document.getElementById('btnClear').addEventListener('click',clearAll);
+document.getElementById('btnSortAZ').addEventListener('click',sortAZ);
+document.getElementById('btnSortMutlak').addEventListener('click',sortMutlak);
+document.getElementById('btnAdd').addEventListener('click',()=>addPerson(document.getElementById('newName').value.trim()));
+document.getElementById('newName').addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('btnAdd').click();}});
+monthSel.addEventListener('change',()=>renderAll());
 
 // Unduh / Muat JSON
 document.getElementById('btnSave').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify(collectAllData())],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kelas_N4_rasen_absensi_Sept-Nov_2025.json'; a.click();
+  const blob=new Blob([JSON.stringify(collectAllDataV2())],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='absensi_multi_kelas.json'; a.click();
 });
 const fileInput=document.getElementById('fileInput');
 document.getElementById('btnLoad').addEventListener('click',()=>fileInput.click());
 fileInput.addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f) return; const rdr=new FileReader();
-  rdr.onload=()=>{ try{ applyAllData(JSON.parse(rdr.result)); } catch(err){ alert('File tidak valid / bukan JSON.'); } };
+  rdr.onload=()=>{ try{
+      const obj=JSON.parse(rdr.result);
+      if(obj && Array.isArray(obj.classes)) applyAllDataV2(obj);
+      else if(obj && obj.values) applyAllDataV1(obj);
+      else throw new Error('schema tidak dikenal');
+    } catch(err){ console.error(err); alert('File tidak valid / schema tidak dikenal.'); } };
   rdr.readAsText(f); fileInput.value='';
 });
-
-document.getElementById('btnSortAZ').addEventListener('click',sortAZ);
-document.getElementById('btnSortMutlak').addEventListener('click',sortMutlak);
-document.getElementById('btnAdd').addEventListener('click',()=>addPerson(document.getElementById('newName').value.trim()));
-document.getElementById('newName').addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('btnAdd').click();}});
-monthSel.addEventListener('change',()=>{renderAll();});
 </script>
 </body>
 </html>
