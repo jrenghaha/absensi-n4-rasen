@@ -7,7 +7,6 @@
 <link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   :root{
-    /* Light theme */
     --bg:#ffffff; --card:#ffffff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
     --head:#f3f4f6; --sticky:#ffffff;
     --sakit:#fee2e2; --alpa:#ef4444; --izin:#dbeafe; --han:#fef3c7; --holiday:#f3f4f6;
@@ -168,7 +167,8 @@
           <th>Izin</th>
           <th>Alpa</th>
           <th>半</th>
-          <th>Taisou (izin/tdk)</th>
+          <th>Izin Taisou</th>
+          <th>Tidak Taisou</th>
           <th>Rata-rata Nilai</th>
         </tr>
       </thead>
@@ -273,7 +273,7 @@ function buildHeader(monthKey){
   const thNo=document.createElement('th'); thNo.className='sticky no'; thNo.textContent='No.'; thNo.rowSpan=2; tr1.appendChild(thNo);
   const thName=document.createElement('th'); thName.className='sticky name'; thName.textContent='Nama Siswa'; thName.rowSpan=2; tr1.appendChild(thName);
 
-  const thMonth=document.createElement('th'); thMonth.colSpan=dates.length+7; thMonth.textContent=fmtMonth(dates[0]); tr1.appendChild(thMonth);
+  const thMonth=document.createElement('th'); thMonth.colSpan=dates.length+8; thMonth.textContent=fmtMonth(dates[0]); tr1.appendChild(thMonth);
 
   for(let cIdx=0;cIdx<dates.length;cIdx++){
     const d=dates[cIdx];
@@ -295,7 +295,7 @@ function buildHeader(monthKey){
     tr2.appendChild(th);
   }
 
-  ['Hadir','Sakit','Izin','Alpa','半','Taisou (izin/tdk)','Rata-rata Nilai'].forEach(t=>{
+  ['Hadir','Sakit','Izin','Alpa','半','Izin Taisou','Tidak Taisou','Rata-rata Nilai'].forEach(t=>{
     const th=document.createElement('th'); th.textContent=t; th.className='totals-head'+(t.includes('Nilai')?' avg-col':''); tr2.appendChild(th);
   });
 
@@ -370,23 +370,23 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
 
 /* ========= Totals & body ========= */
 function countTotals(rowObjs, monthKey){
-  let sakit=0,hadir=0,alpa=0,izin=0, tdkTaisou=0, hanCnt=0, sum=0, cnt=0;
+  let sakit=0,hadir=0,alpa=0,izin=0, izinTai=0, tdkTai=0, hanCnt=0, sum=0, cnt=0;
   for(let cIdx=0;cIdx<rowObjs.length;cIdx++){
     const o=rowObjs[cIdx];
     if(o.a==='sakit') sakit++;
     else if(o.a==='hadir') hadir++;
     else if(o.a==='alpa') alpa++;
     else if(o.a==='izin') izin++;
-    else if(o.a==='半') hanCnt++;
+    else if(o.a==='半')   hanCnt++;
 
-    // ⬇️ sekarang menghitung 'izin taisou' JUGA, bukan hanya 'tidak hadir taisou'
-    if(o.t==='tidak hadir taisou' || o.t==='izin taisou') tdkTaisou++;
+    if(o.t==='izin taisou') izinTai++;
+    if(o.t==='tidak hadir taisou') tdkTai++;
 
     const d = DATES[monthKey][cIdx];
     if(!isWeekend(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; }
   }
   const avg = cnt ? (sum/cnt) : null;
-  return {sakit,hadir,alpa,izin,tdkTaisou,hanCnt,avg};
+  return {sakit,hadir,alpa,izin,izinTai,tdkTai,hanCnt,avg};
 }
 function updateTotalsCells(tr, monthKey, rIdx){
   const t=countTotals(DATA[monthKey][rIdx], monthKey);
@@ -396,9 +396,10 @@ function updateTotalsCells(tr, monthKey, rIdx){
   tds[2].textContent=t.izin;
   tds[3].textContent=t.alpa;
   tds[4].textContent=t.hanCnt;
-  tds[5].textContent=t.tdkTaisou; // kini termasuk izin+tidak hadir taisou
-  tds[6].textContent=(t.avg===null?'':t.avg.toFixed(1));
-  if(t.avg!==null && t.avg<70) tds[6].classList.add('avg-low'); else tds[6].classList.remove('avg-low');
+  tds[5].textContent=t.izinTai;
+  tds[6].textContent=t.tdkTai;
+  tds[7].textContent=(t.avg===null?'':t.avg.toFixed(1));
+  if(t.avg!==null && t.avg<70) tds[7].classList.add('avg-low'); else tds[7].classList.remove('avg-low');
 }
 function buildBody(monthKey){
   tbody.innerHTML='';
@@ -457,7 +458,7 @@ function buildBody(monthKey){
       tr.appendChild(td);
     });
 
-    ['hadir','sakit','izin','alpa','han','tdkTaisou','avg'].forEach(key=>{
+    ['hadir','sakit','izin','alpa','han','izinTai','tdkTai','avg'].forEach(key=>{
       const td=document.createElement('td'); td.className='totals-cell'+(key==='avg'?' avg-col':''); tr.appendChild(td);
     });
 
@@ -660,7 +661,8 @@ function buildPrintSummary(orderMode){
       <td>${t.izin}</td>
       <td>${t.alpa}</td>
       <td>${t.hanCnt}</td>
-      <td>${t.tdkTaisou}</td>
+      <td>${t.izinTai}</td>
+      <td>${t.tdkTai}</td>
       <td>${t.avg==null?'':t.avg.toFixed(1)}</td>`;
     psBody.appendChild(tr);
   }
