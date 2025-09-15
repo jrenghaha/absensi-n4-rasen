@@ -168,7 +168,7 @@
           <th>Izin</th>
           <th>Alpa</th>
           <th>半</th>
-          <th>Tidak Taisou</th>
+          <th>Taisou (izin/tdk)</th>
           <th>Rata-rata Nilai</th>
         </tr>
       </thead>
@@ -217,7 +217,6 @@
 
 <script>
 /* ========= Konstanta & util ========= */
-const STORAGE_KEY = 'kelas_n4_rasen_absensi_2025_FULL_v1';
 let TITLE = 'Kelas N4 Rasen';
 
 const ABSOLUTE_ORDER = [
@@ -247,7 +246,7 @@ const MONTHS = ['september','oktober','november'];
 // DATA[month][row][col] = { a: '', t: '', s: null }
 let DATA = {
   september: PEOPLE.map(()=> DATES.september.map(()=>({a:'',t:'',s:null})) ),
-  oktober:   PEOPLE.map(()=> DATES.okober?.map(()=>({a:'',t:'',s:null})) || DATES.oktober.map(()=>({a:'',t:'',s:null})) ),
+  oktober:   PEOPLE.map(()=> DATES.oktober.map(()=>({a:'',t:'',s:null})) ),
   november:  PEOPLE.map(()=> DATES.november.map(()=>({a:'',t:'',s:null})) )
 };
 
@@ -296,7 +295,7 @@ function buildHeader(monthKey){
     tr2.appendChild(th);
   }
 
-  ['Hadir','Sakit','Izin','Alpa','半','Tidak Taisou','Rata-rata Nilai'].forEach(t=>{
+  ['Hadir','Sakit','Izin','Alpa','半','Taisou (izin/tdk)','Rata-rata Nilai'].forEach(t=>{
     const th=document.createElement('th'); th.textContent=t; th.className='totals-head'+(t.includes('Nilai')?' avg-col':''); tr2.appendChild(th);
   });
 
@@ -380,7 +379,8 @@ function countTotals(rowObjs, monthKey){
     else if(o.a==='izin') izin++;
     else if(o.a==='半') hanCnt++;
 
-    if(o.t==='tidak hadir taisou') tdkTaisou++;
+    // ⬇️ sekarang menghitung 'izin taisou' JUGA, bukan hanya 'tidak hadir taisou'
+    if(o.t==='tidak hadir taisou' || o.t==='izin taisou') tdkTaisou++;
 
     const d = DATES[monthKey][cIdx];
     if(!isWeekend(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; }
@@ -396,7 +396,7 @@ function updateTotalsCells(tr, monthKey, rIdx){
   tds[2].textContent=t.izin;
   tds[3].textContent=t.alpa;
   tds[4].textContent=t.hanCnt;
-  tds[5].textContent=t.tdkTaisou;
+  tds[5].textContent=t.tdkTaisou; // kini termasuk izin+tidak hadir taisou
   tds[6].textContent=(t.avg===null?'':t.avg.toFixed(1));
   if(t.avg!==null && t.avg<70) tds[6].classList.add('avg-low'); else tds[6].classList.remove('avg-low');
 }
@@ -759,7 +759,7 @@ function removePerson(rIdx){
 
 /* ========= Init & events ========= */
 titleInput.value=TITLE; titleInput.addEventListener('input',()=>{TITLE=titleInput.value;});
-if(!loadFromLocal()) renderAll();
+renderAll();
 
 document.getElementById('btnClear').addEventListener('click',clearAll);
 
