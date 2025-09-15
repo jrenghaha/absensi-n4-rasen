@@ -1,628 +1,785 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Absensi - App</title>
-  <style>
-    :root{
-      --bg:#0b1020;--panel:#11182d;--muted:#6b7280;--text:#e5e7eb;--line:#24324d;
-      --accent:#60a5fa;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--bad:#ef4444;--mid:#f59e0b;
-    }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial}
-    h1{font-size:18px;margin:12px 0}
-    .wrap{max-width:1200px;margin:0 auto;padding:14px}
-    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
-    .toolbar .group{display:flex;gap:8px;align-items:center}
-    input[type="text"],input[type="number"],select{background:#0e152a;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 8px;font:inherit}
-    input[type="number"]{width:68px}
-    button{border:1px solid var(--line);background:#0e152a;color:var(--text);border-radius:10px;padding:8px 10px;font-weight:600;cursor:pointer}
-    button.primary{background:var(--accent);border-color:var(--accent);color:#0b1020}
-    button.danger{border-color:#7f1d1d;background:#1f0f12}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    table{width:100%;border-collapse:separate;border-spacing:0;margin-top:12px}
-    thead th{position:sticky;top:0;background:var(--panel);z-index:2}
-    th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:center}
-    th.name,td.name{text-align:left;position:sticky;left:0;background:var(--panel);z-index:1}
-    tbody tr:nth-child(odd) td{background:#0c142a}
-    tbody tr:nth-child(even) td{background:#0b1326}
-    .wday{font-size:11px;color:var(--muted)}
-    .sat{background:#0f1b33}
-    .sun{background:#0d1222;color:#9ca3af}
-    .score.bad{outline:2px solid var(--bad)}
-    .score.mid{outline:2px solid var(--warn)}
-    .avg.bad{color:var(--bad);font-weight:700}
-    .avg.mid{color:var(--warn);font-weight:700}
-    .pill{display:inline-block;border:1px solid var(--line);padding:2px 6px;border-radius:999px;font-size:12px}
-    .hint{color:var(--muted);font-size:12px}
-    dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:14px;max-width:520px}
-    dialog::backdrop{background:rgba(0,0,0,.5)}
-    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
-    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Absensi</title>
+<link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='46' rx='6' ry='6' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Crect x='20' y='6' width='24' height='10' rx='4' ry='4' fill='%23ffffff' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M18 36l9 9 19-19' fill='none' stroke='%2306a66a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0f172a; --card:#0b1220; --text:#e5e7eb; --muted:#9ca3af; --border:#334155;
+    --head:#111827; --sticky:#0b1326;
+    --sakit:#7f1d1d; --alpa:#b91c1c; --izin:#1e3a8a; --han:#a16207; --holiday:#1f2937;
+    --score-low:#7f1d1d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial}
+  .wrap{padding:16px}
+  h1{margin:0 0 8px;font-size:1.7rem}
+  .titlebar{display:flex;gap:10px;align-items:center;margin:8px 0 6px}
+  .title-input{flex:1;max-width:480px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-weight:700;background:#0b1220;color:var(--text)}
+  .subtitle{color:var(--muted);margin-bottom:10px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+  select,button,input{border:1px solid var(--border);background:#0b1220;color:var(--text);padding:8px 12px;border-radius:10px;font-weight:600}
+  button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+  button.danger{background:#3f1d1d;color:#fecaca;border-color:#7f1d1d}
+  input[type="number"].score{width:90px;padding:6px 8px;border-radius:8px;background:#0b1220;color:var(--text)}
+  .note{color:var(--muted);font-size:.9rem}
+
+  .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--card);-webkit-overflow-scrolling:touch}
+  table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+  th,td{border:1px solid var(--border);padding:6px 8px;text-align:center;white-space:nowrap;vertical-align:middle}
+  thead th{background:var(--head);font-weight:700}
+  thead tr:nth-child(1) th{position:sticky;top:0;z-index:3;background:var(--sticky)}
+  thead tr:nth-child(2) th{position:sticky;top:36px;z-index:3;background:var(--head)}
+  th.sticky,td.sticky{position:sticky;left:0;background:#0b1220;z-index:2;text-align:left}
+  th.sticky.no,td.sticky.no{width:52px;left:0;text-align:center}
+  th.sticky.name,td.sticky.name{left:52px;z-index:3}
+  select.cell{padding:4px 6px;border-radius:8px;background:#0b1220;color:var(--text)}
+  .cell-stack{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;min-width:120px}
+  .cell-inline{display:flex;gap:6px;align-items:center;justify-content:center}
+  .sakit{background:var(--sakit)!important}
+  .alpa{background:var(--alpa)!important;color:#fff}
+  .izin{background:var(--izin)!important}
+  .han{background:var(--han)!important;color:#fff}
+  .holiday{background:var(--holiday)!important}
+
+  .totals-head{background:#0d1b2a!important}
+  .totals-cell{background:#0b1326;font-weight:700}
+  .avg-col{background:#0a224a}
+  .low-score{background:var(--score-low)!important;color:#fff!important}
+  .avg-low{background:#b91c1c!important;color:#fff!important}
+
+  .name-box{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .name-input{padding:6px 8px;border:1px solid var(--border);border-radius:8px;min-width:220px;background:#0b1220;color:var(--text)}
+  .remove-btn{padding:4px 8px;border-radius:8px}
+
+  .bulk-box{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+  .bulk-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .bulk-box input[type="number"]{width:60px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#0b1220;color:var(--text)}
+  .bulk-box input[type="text"]{flex:1;min-width:160px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#0b1220;color:var(--text)}
+  .bulk-box button{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:#0a224a;color:#e5e7eb}
+
+  .date-head{position:relative}
+  .mini-btn{position:absolute; top:2px; right:2px; border:1px solid var(--border); background:#0b1220; border-radius:6px; font-size:10px; line-height:1; padding:2px 6px; cursor:pointer; color:var(--text);}
+  .mini-del{position:absolute; top:2px; right:26px; border:1px solid #b91c1c; background:#0b1220; border-radius:6px; font-size:10px; line-height:1; padding:2px 6px; cursor:pointer; color:#fecaca;}
+
+  .add-wrap{display:flex;gap:8px;align-items:center}
+  .muted{color:#9ca3af}
+
+  #printSummary{display:none;color:#111}
+  #printSummary h2{margin:8px 0 12px}
+  #printSummary .meta{color:#374151;margin-bottom:8px}
+  #printSummary table{width:100%;border-collapse:collapse}
+  #printSummary th,#printSummary td{border:1px solid #000;padding:6px 8px;text-align:center}
+  #printSummary th{text-align:center;background:#f3f4f6}
+
+  @media print{
+    .toolbar,.note,.subtitle,.titlebar,.table-wrap,h1{display:none !important}
+    #printSummary{display:block !important}
+    body{background:#fff}
+  }
+
+  @media (max-width:640px){
+    .titlebar{flex-direction:column;align-items:stretch;gap:6px}
+    .title-input{max-width:100%}
+    .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .toolbar>*{width:100%}
+    .add-wrap{grid-column:1/-1}
+    #newName{width:100%}
+    th,td{padding:6px}
+    th.sticky.no,td.sticky.no{width:44px}
+    th.sticky.name,td.sticky.name{left:44px;max-width:180px;overflow:hidden}
+    .name-input{width:100%;font-size:14px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+    select.cell{max-width:120px}
+    input.score{width:78px}
+  }
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal{background:#fff;border:1px solid #000;border-radius:12px;max-width:560px;width:100%}
+  .modal header{padding:12px 14px;border-bottom:1px solid #000;font-weight:700}
+  .modal main{padding:14px}
+  .modal footer{padding:12px 14px;border-top:1px solid #000;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .modal button{border:1px solid #000;border-radius:10px;padding:8px 12px}
+  .modal .danger{border-color:#b91c1c;color:#b91c1c;background:#fff}
+  .modal .primary{background:#2563eb;color:#fff;border-color:#2563eb}
+</style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Absensi Kelas <span id="title">N4 Rasen</span> — <span id="monthsLabel">Sep–Nov 2025</span></h1>
+  <h1>Absensi Kelas N4 Rasen — Sep–Nov 2025</h1>
 
-  <div class="toolbar" role="region" aria-label="Toolbar">
-    <div class="group" style="flex:1 1 auto">
-      <label class="sr-only" for="newName">Nama</label>
-      <input id="newName" type="text" placeholder="Tambah nama… (Enter)"/>
-      <button id="addBtn" class="primary" type="button">Tambah</button>
-      <span class="hint">Enter untuk tambah cepat</span>
-    </div>
-    <div class="group">
-      <button id="sortAZ" type="button" title="Urut Abjad">Urut A→Z</button>
-      <button id="sortAbs" type="button" title="Urut Mutlak (tetap)">Urut Mutlak</button>
-    </div>
-    <div class="group">
-      <button id="downloadBtn" type="button" title="Unduh JSON">Unduh JSON</button>
-      <input id="fileInput" class="sr-only" type="file" accept="application/json">
-      <button id="uploadBtn" type="button" title="Muat JSON">Muat JSON…</button>
-      <button id="printBtn" type="button" title="Cetak / PDF">Cetak / PDF</button>
-      <button id="clearAll" class="danger" type="button" title="Hapus semua data">Clear All</button>
-    </div>
+  <div class="titlebar">
+    <label for="titleInput">Judul Kelas:</label>
+    <input id="titleInput" class="title-input" placeholder="Kelas N4 Rasen" />
   </div>
 
-  <div class="hint" style="margin-top:6px">Selasa & Kamis memiliki kolom <em>taisou</em>. Sabtu hanya <em>taisou</em>. Minggu non-aktif.</div>
+  <div class="subtitle">
+    Selasa & Kamis memiliki kolom <i>taisou</i>. Sabtu hanya <i>taisou</i>. Minggu non-aktif.
+  </div>
 
-  <table id="tbl">
-    <thead id="thead"></thead>
-    <tbody id="tbody"></tbody>
-  </table>
+  <div class="toolbar">
+    <label for="monthSel">Pilih Bulan:</label>
+    <select id="monthSel">
+      <option value="september">Absensi September</option>
+      <option value="oktober">Absensi Oktober</option>
+      <option value="november">Absensi November</option>
+    </select>
+
+    <button class="primary" id="btnClear">Clear All</button>
+    <button id="btnPrint">Cetak / PDF</button>
+    <button id="btnSave">Unduh JSON</button>
+    <button id="btnLoad">Muat JSON…</button>
+
+    <button id="btnSortAZ">Urut A→Z</button>
+    <button id="btnSortMutlak">Urut Mutlak</button>
+
+    <span class="add-wrap">
+      <input type="text" id="newName" placeholder="Tambah nama… (Enter)" />
+      <button id="btnAdd">Tambah</button>
+    </span>
+    <input type="file" id="fileInput" accept="application/json" style="display:none" />
+  </div>
+
+  <div class="note">
+    Nilai &lt; 70 akan diberi highlight merah. Tombol <b>＋</b> (isi nilai otomatis) & <b>🗑</b> (hapus data tanggal) hanya untuk hari kerja.
+  </div>
+
+  <div class="table-wrap">
+    <table id="absensi">
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Print-only summary -->
+  <div id="printSummary">
+    <h2 id="psTitle">Rekap Absensi</h2>
+    <div class="meta" id="psMeta"></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Nama</th>
+          <th>Hadir</th>
+          <th>Sakit</th>
+          <th>Izin</th>
+          <th>Alpa</th>
+          <th>半</th>
+          <th>Tidak Taisou</th>
+          <th>Rata-rata Nilai</th>
+        </tr>
+      </thead>
+      <tbody id="psBody"></tbody>
+    </table>
+  </div>
 </div>
 
-<!-- Modal Cetak / PDF -->
-<dialog id="printDlg">
-  <form method="dialog">
-    <h3 style="margin:0 0 8px">Cetak / Ekspor PDF</h3>
-    <div style="display:grid;gap:8px">
-      <label>Urutan siswa saat rekap:
-        <select id="printOrder">
-          <option value="abs">Urut Mutlak (tetap)</option>
-          <option value="az">Urut Abjad (A→Z)</option>
-          <option value="rank">Urut Rangking (Rata-rata tertinggi → terendah)</option>
-        </select>
-      </label>
-      <label>Rentang bulan:
-        <select id="printMonths">
-          <option value="all">Semua bulan</option>
-          <option value="m0">Bulan 1</option>
-          <option value="m1">Bulan 2</option>
-          <option value="m2">Bulan 3</option>
-        </select>
-      </label>
-      <p class="hint">Rekap berisi: Nama, Hadir/Sakit/Izin/Alpa/半, Tidak Taisou, dan Rata-rata.</p>
-    </div>
-    <div class="modal-actions">
-      <button value="cancel" type="button">Batal</button>
-      <button id="goPrint" value="default" type="button" class="primary">Buka Mode Cetak</button>
-    </div>
-  </form>
-</dialog>
+<!-- ===== Modals ===== -->
+<div class="modal-backdrop" id="printModal">
+  <div class="modal">
+    <header>Pilih urutan untuk rekap cetak</header>
+    <main><p>Urutan ini hanya memengaruhi <b>rekap cetak/PDF</b>, tidak mengubah tampilan tabel.</p></main>
+    <footer>
+      <button id="printCancel">Cancel</button>
+      <button class="primary" id="printOrderRank">Ranking (rata-rata)</button>
+      <button class="primary" id="printOrderAbjad">Abjad (A→Z)</button>
+      <button class="primary" id="printOrderMutlak">Mutlak/Awal</button>
+    </footer>
+  </div>
+</div>
 
-<!-- Modal konfirmasi Clear All -->
-<dialog id="wipeDlg">
-  <form method="dialog">
-    <h3 style="margin:0 0 8px;color:#fca5a5">Hapus Semua Data</h3>
-    <p>Langkah ini akan mengosongkan seluruh nama & nilai. Untuk konfirmasi, ketik: <b>HAPUS SEMUA</b></p>
-    <input id="wipeConfirm" type="text" placeholder="ketik di sini"/>
-    <div class="modal-actions">
-      <button value="cancel" type="button">Batal</button>
-      <button id="doWipe" value="default" type="button" class="danger" disabled>Hapus</button>
-    </div>
-  </form>
-</dialog>
+<div class="modal-backdrop" id="orderModal">
+  <div class="modal">
+    <header>Pilih urutan untuk pengisian nilai tanggal ini</header>
+    <main><p>Urutan ini hanya menentukan urutan input nilai otomatis.</p></main>
+    <footer>
+      <button id="orderCancel">Cancel</button>
+      <button class="primary" id="orderAbjad">Abjad (A→Z)</button>
+      <button class="primary" id="orderMutlak">Mutlak/Awal</button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="clearDayModal">
+  <div class="modal">
+    <header>Hapus data di tanggal ini</header>
+    <main><p id="clearDayLabel">Tanggal: —</p><p>Pilih aksi yang diinginkan:</p></main>
+    <footer>
+      <button id="clearDayCancel">Cancel</button>
+      <button class="danger" id="clearDayBoth">Hapus nilai + absensi</button>
+      <button class="primary" id="clearDayScores">Hapus nilai saja</button>
+    </footer>
+  </div>
+</div>
 
 <script>
-/********************
- * KONFIG & STATE
- ********************/
-const TITLE = 'N4 Rasen';
-const MONTHS = [
-  { label:'Sep 2025', ym:'2025-09' },
-  { label:'Okt 2025', ym:'2025-10' },
-  { label:'Nov 2025', ym:'2025-11' }
-];
+/* ========= Konstanta & util ========= */
+const STORAGE_KEY = 'kelas_n4_rasen_absensi_2025_FULL_v1';
+let TITLE = 'Kelas N4 Rasen';
 
-// Hari: 0=Min ... 6=Sab
-const TUES=2, THU=4, SAT=6, SUN=0;
+const ABSOLUTE_ORDER = [
+  "ZASKIA AMILA","VANIA PUTRI TARISA","AIFI DEWI ANGGRAINI","SAVIRA ALMAS NUR ARIFIN",
+  "SYAKILLA MAGHFIRUHA","MELDA DWI ENIKE","FERDIAN FARREL KRISTIAWAN","AHMAD NUR MUJAHIDIN",
+  "TAUFIQ HIDAYAT","IMEL BR SIMBOLON","YULIASTRI PATANDUK","FRANCISKUS SIMAMORA",
+  "VELIN FARDENCITA","RICHIE RAJASWA WIBOWO","LINDA NUR'AINI","WIDYA NIDYA AMELIA",
+  "YESITA DYANING PRASANTI","RIYAN DWI AGATA"
+].map(n=>n.trim().toUpperCase());
 
-/** Struktur data **/
 let PEOPLE = [
-  // {id:'uuid', name:'Nama'}
-];
-let DATES = MONTHS.map(m => buildDatesOfMonth(m.ym)); // array of arrays
-// DATA[monthIndex][rowIndex][colIndex] = { a:att, t:taisou, s:score }
-let DATA = DATES.map(days => []);
+  "ZASKIA AMILA","VANIA PUTRI TARISA","AIFI DEWI ANGGRAINI","SAVIRA ALMAS NUR ARIFIN",
+  "SYAKILLA MAGHFIRUHA","MELDA DWI ENIKE","FERDIAN FARREL KRISTIAWAN","AHMAD NUR MUJAHIDIN",
+  "TAUFIQ HIDAYAT","IMEL BR SIMBOLON","YULIASTRI PATANDUK","FRANCISKUS SIMAMORA",
+  "VELIN FARDENCITA","RICHIE RAJASWA WIBOWO","LINDA NUR'AINI","WIDYA NIDYA AMELIA",
+  "YESITA DYANING PRASANTI","RIYAN DWI AGATA"
+].map(n=>({name:n}));
 
-/********************
- * UTILITAS WAKTU & ARRAY
- ********************/
-function buildDatesOfMonth(ym){
-  const [y,m] = ym.split('-').map(Number); // m: 1-12 => Date pakai 0-11
-  const nDays = new Date(y, m, 0).getDate();
-  const out = [];
-  for(let d=1; d<=nDays; d++){
-    const dt = new Date(y, m-1, d);
-    out.push({ y, m, d, w: dt.getDay() });
-  }
-  return out;
-}
+const rangeDates=(y,m)=>{const first=new Date(y,m,1),last=new Date(y,m+1,0),arr=[];for(let d=new Date(first);d<=last;d.setDate(d.getDate()+1))arr.push(new Date(d));return arr;};
+const DATES={
+  september:rangeDates(2025,8),
+  oktober:  rangeDates(2025,9),
+  november: rangeDates(2025,10)
+};
+const MONTHS = ['september','oktober','november'];
 
-function dayLabel(w){
-  return ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][w];
-}
+// DATA[month][row][col] = { a: '', t: '', s: null }
+let DATA = {
+  september: PEOPLE.map(()=> DATES.september.map(()=>({a:'',t:'',s:null})) ),
+  oktober:   PEOPLE.map(()=> DATES.oktober.map(()=>({a:'',t:'',s:null})) ),
+  november:  PEOPLE.map(()=> DATES.november.map(()=>({a:'',t:'',s:null})) )
+};
 
-function clampScore(v){
-  if(v===''||v===null||v===undefined) return null;
-  let n = Number(v);
-  if(!Number.isFinite(n)) return null;
-  n = Math.max(0, Math.min(100, Math.round(n)));
-  return n;
-}
+const titleInput=document.getElementById('titleInput');
+const monthSel=document.getElementById('monthSel');
+const thead=document.getElementById('thead');
+const tbody=document.getElementById('tbody');
 
-function uuid(){
-  return (crypto.randomUUID? crypto.randomUUID() : 'id-'+Math.random().toString(36).slice(2));
-}
+const fmtMonth=d=>d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+const fmtDay=d=>{const day=d.toLocaleDateString('id-ID',{day:'2-digit'});const wk=d.toLocaleDateString('id-ID',{weekday:'short'});return `${day}<br>${wk}`;};
+const isSunday=d=>d.getDay()===0;
+const isSaturday=d=>d.getDay()===6;
+const isWeekend=d=>isSunday(d)||isSaturday(d);
+const needsTaisouWeekday=d=>[2,4].includes(d.getDay()); // Tue/Thu
+const toLocalYMD=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`;};
 
-/********************
- * RENDER TABLE
- ********************/
-const thead = document.getElementById('thead');
-const tbody = document.getElementById('tbody');
-
-function renderHead(){
-  const cols = [ 'Nama' ];
-  // tanggal header
-  DATES.forEach((days, mi)=>{
-    days.forEach((d,ci)=>{
-      cols.push(`${d.d}<div class="wday">${dayLabel(d.w)}</div>`);
-    });
-  });
-  // ringkasan
-  cols.push('Hadir','Sakit','Izin','Alpa','半','No Taisou','Rata²');
-
-  // baris head 1
-  const tr = document.createElement('tr');
-  cols.forEach((html,i)=>{
-    const th = document.createElement('th');
-    th.innerHTML = html;
-    if(i===0) th.className='name';
-    // beri kelas weekend
-    if(i>0){
-      const idx = i-1;
-      // hitung m/c berdasarkan panjang
-      let acc=0, mi=0, ci=0;
-      while(mi<DATES.length){
-        if(idx < acc + DATES[mi].length){ ci = idx-acc; break; }
-        acc += DATES[mi].length; mi++;
-      }
-      const w = DATES[mi][ci].w;
-      if(w===SAT) th.classList.add('sat');
-      if(w===SUN) th.classList.add('sun');
-    }
-    tr.appendChild(th);
-  });
+/* ========= Header ========= */
+function buildHeader(monthKey){
   thead.innerHTML='';
-  thead.appendChild(tr);
-}
+  const dates=DATES[monthKey];
+  const tr1=document.createElement('tr');
+  const tr2=document.createElement('tr');
 
-function ensureRowCapacity(){
-  DATES.forEach((days, mi)=>{
-    while(DATA[mi].length < PEOPLE.length){
-      DATA[mi].push(days.map(()=> ({a:'', t:'', s:null})));
+  const thNo=document.createElement('th'); thNo.className='sticky no'; thNo.textContent='No.'; thNo.rowSpan=2; tr1.appendChild(thNo);
+  const thName=document.createElement('th'); thName.className='sticky name'; thName.textContent='Nama Siswa'; thName.rowSpan=2; tr1.appendChild(thName);
+
+  const thMonth=document.createElement('th'); thMonth.colSpan=dates.length+7; thMonth.textContent=fmtMonth(dates[0]); tr1.appendChild(thMonth);
+
+  for(let cIdx=0;cIdx<dates.length;cIdx++){
+    const d=dates[cIdx];
+    const th=document.createElement('th'); th.className='date-head';
+    th.innerHTML=fmtDay(d);
+    if(isWeekend(d)) th.classList.add('holiday');
+
+    if(!isWeekend(d)){
+      const del=document.createElement('button'); del.className='mini-del'; del.textContent='🗑';
+      del.title='Hapus nilai/absensi di tanggal ini';
+      del.addEventListener('click', ()=> openClearDayModal(monthKey, cIdx));
+      th.appendChild(del);
+
+      const plus=document.createElement('button'); plus.className='mini-btn'; plus.textContent='＋';
+      plus.title='Tambah Nilai Otomatis (Mutlak / Abjad)';
+      plus.addEventListener('click', ()=> bulkFillForDate(monthKey, cIdx));
+      th.appendChild(plus);
     }
+    tr2.appendChild(th);
+  }
+
+  ['Hadir','Sakit','Izin','Alpa','半','Tidak Taisou','Rata-rata Nilai'].forEach(t=>{
+    const th=document.createElement('th'); th.textContent=t; th.className='totals-head'+(t.includes('Nilai')?' avg-col':''); tr2.appendChild(th);
   });
+
+  thead.appendChild(tr1); thead.appendChild(tr2);
 }
 
-function renderBody(){
-  ensureRowCapacity();
-  const frag = document.createDocumentFragment();
+/* ========= Cell builders ========= */
+function applyTDColor(td,val){
+  td.classList.remove('sakit','alpa','izin','han');
+  if(val==='sakit') td.classList.add('sakit');
+  else if(val==='alpa') td.classList.add('alpa');
+  else if(val==='izin') td.classList.add('izin');
+  else if(val==='半') td.classList.add('han');
+}
+function setScoreVisual(inputEl, raw){
+  const n=(raw===null||raw==='')?null:Number(raw);
+  if(n!==null && !isNaN(n) && n<70) inputEl.classList.add('low-score');
+  else inputEl.classList.remove('low-score');
+}
+function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
+  if(isSunday(date)){ td.innerHTML='<span class="muted">—</span>'; return; }
 
-  PEOPLE.forEach((p, ri)=>{
-    const tr = document.createElement('tr');
+  if(isSaturday(date)){
+    td.classList.add('holiday');
+    const wrap=document.createElement('div'); wrap.className='cell-inline';
+    const selT=document.createElement('select'); selT.className='cell';
+    ['','hadir taisou','tidak hadir taisou'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selT.appendChild(o);});
+    selT.value=obj.t||'';
+    selT.addEventListener('change',()=>{obj.t=selT.value;});
+    wrap.appendChild(selT); td.appendChild(wrap); return;
+  }
 
-    const tdName = document.createElement('td');
-    tdName.className='name';
-    tdName.textContent = p.name;
+  const wrap=document.createElement('div'); wrap.className=needsTaisouWeekday(date)?'cell-stack':'cell-inline';
+
+  const selMain=document.createElement('select'); selMain.className='cell';
+  ['','hadir','sakit','izin','alpa','半'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selMain.appendChild(o);});
+  selMain.value=obj.a||'';
+  selMain.addEventListener('change',()=>{obj.a=selMain.value; applyTDColor(td,obj.a); updateTotalsCells(td.parentElement,monthKey,rIdx);});
+  wrap.appendChild(selMain);
+
+  if(needsTaisouWeekday(date)){
+    const selT=document.createElement('select'); selT.className='cell';
+    ['','hadir taisou','tidak hadir taisou'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'';selT.appendChild(o);});
+    selT.value=obj.t||'';
+    selT.addEventListener('change',()=>{obj.t=selT.value; updateTotalsCells(td.parentElement,monthKey,rIdx);});
+    wrap.appendChild(selT);
+  }
+
+  const score=document.createElement('input');
+  score.type='number'; score.className='score'; score.min='0'; score.max='100'; score.step='1'; score.placeholder='Nilai';
+  score.value=(obj.s===null||obj.s==='')?'':obj.s;
+
+  const handleScore=()=>{
+    let v=score.value!=null?String(score.value).trim():'';
+    if(v===''){ obj.s=null; setScoreVisual(score,null); }
+    else{
+      let n=Number(v); if(isNaN(n)) n=null; else{ if(n<0) n=0; if(n>100) n=100; }
+      obj.s=n;
+      if(n!==null){ obj.a='hadir'; selMain.value='hadir'; applyTDColor(td,'hadir'); }
+      setScoreVisual(score,n);
+    }
+    updateTotalsCells(td.parentElement,monthKey,rIdx);
+  };
+  ['input','change','keyup','blur'].forEach(evt=>score.addEventListener(evt,handleScore));
+
+  wrap.appendChild(score);
+  td.appendChild(wrap);
+
+  setScoreVisual(score,obj.s);
+  applyTDColor(td,obj.a);
+}
+
+/* ========= Totals & body ========= */
+function countTotals(rowObjs, monthKey){
+  let sakit=0,hadir=0,alpa=0,izin=0, tdkTaisou=0, hanCnt=0, sum=0, cnt=0;
+  for(let cIdx=0;cIdx<rowObjs.length;cIdx++){
+    const o=rowObjs[cIdx];
+    if(o.a==='sakit') sakit++;
+    else if(o.a==='hadir') hadir++;
+    else if(o.a==='alpa') alpa++;
+    else if(o.a==='izin') izin++;
+    else if(o.a==='半') hanCnt++;
+
+    if(o.t==='tidak hadir taisou') tdkTaisou++;
+
+    const d = DATES[monthKey][cIdx];
+    if(!isWeekend(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; }
+  }
+  const avg = cnt ? (sum/cnt) : null;
+  return {sakit,hadir,alpa,izin,tdkTaisou,hanCnt,avg};
+}
+function updateTotalsCells(tr, monthKey, rIdx){
+  const t=countTotals(DATA[monthKey][rIdx], monthKey);
+  const tds=tr.querySelectorAll('.totals-cell');
+  tds[0].textContent=t.hadir;
+  tds[1].textContent=t.sakit;
+  tds[2].textContent=t.izin;
+  tds[3].textContent=t.alpa;
+  tds[4].textContent=t.hanCnt;
+  tds[5].textContent=t.tdkTaisou;
+  tds[6].textContent=(t.avg===null?'':t.avg.toFixed(1));
+  if(t.avg!==null && t.avg<70) tds[6].classList.add('avg-low'); else tds[6].classList.remove('avg-low');
+}
+function buildBody(monthKey){
+  tbody.innerHTML='';
+  const dates=DATES[monthKey];
+  PEOPLE.forEach((person,rIdx)=>{
+    const tr=document.createElement('tr');
+
+    const tdNo=document.createElement('td'); tdNo.className='sticky no'; tdNo.textContent=rIdx+1; tr.appendChild(tdNo);
+
+    const tdName=document.createElement('td'); tdName.className='sticky name';
+    const nameWrap=document.createElement('div'); nameWrap.className='name-box';
+    const input=document.createElement('input'); input.className='name-input'; input.value=person.name;
+    input.addEventListener('change',()=>{person.name=input.value;});
+    const delBtn=document.createElement('button'); delBtn.className='remove-btn danger'; delBtn.textContent='Hapus';
+    delBtn.addEventListener('click',()=>{ if(confirm(`Hapus ${person.name}?`)) removePerson(rIdx); });
+    nameWrap.appendChild(input); nameWrap.appendChild(delBtn);
+    tdName.appendChild(nameWrap);
+
+    /* Auto nilai per siswa */
+    const bulk = document.createElement('div'); bulk.className='bulk-box';
+    const row1 = document.createElement('div'); row1.className='bulk-row';
+    const row2 = document.createElement('div'); row2.className='bulk-row';
+
+    const lbl = document.createElement('span'); lbl.textContent = 'Auto nilai:';
+    const inFrom = document.createElement('input'); inFrom.type='number'; inFrom.min='1'; inFrom.placeholder='dari';
+    const inTo = document.createElement('input'); inTo.type='number'; inTo.min='1'; inTo.placeholder='sampai';
+    row1.appendChild(lbl); row1.appendChild(inFrom); row1.appendChild(inTo);
+
+    const inText = document.createElement('input'); inText.type='text'; inText.placeholder='8-11: 97 89 90 87  / atau nilai…';
+    const btnApply = document.createElement('button'); btnApply.textContent='Isi Nilai';
+
+    const applyFunc = ()=>{
+      const monthKey = monthSel.value;
+      const parsed = parseBulkInput(inText.value);
+      let sDay = inFrom.value ? Number(inFrom.value) : null;
+      let eDay = inTo.value ? Number(inTo.value) : null;
+      if (parsed.range) { sDay = parsed.range[0]; eDay = parsed.range[1]; }
+      if (sDay==null || eDay==null) { alert('Pilih rentang tanggal (dari-sampai) atau gunakan format "8-11: ...".'); return; }
+      if (sDay > eDay) [sDay, eDay] = [eDay, sDay];
+      fillRowScores(rIdx, monthKey, sDay, eDay, parsed.scores);
+      renderAll();
+    };
+    btnApply.addEventListener('click', applyFunc);
+    inText.addEventListener('keypress', e=>{ if(e.key==='Enter'){ e.preventDefault(); applyFunc(); } });
+
+    row2.appendChild(inText); row2.appendChild(btnApply);
+    bulk.appendChild(row1); bulk.appendChild(row2);
+    tdName.appendChild(bulk);
+
     tr.appendChild(tdName);
 
-    // tanggal cells
-    DATES.forEach((days, mi)=>{
-      days.forEach((d, ci)=>{
-        const td = document.createElement('td');
-        td.dataset.r = ri; td.dataset.m = mi; td.dataset.c = ci;
-        const cell = DATA[mi][ri][ci];
-
-        if(d.w===SUN){
-          td.classList.add('sun');
-          td.textContent='—';
-        }else if(d.w===SAT){
-          td.classList.add('sat');
-          td.innerHTML = selectTaisou(cell.t);
-        }else{
-          td.innerHTML = selectAttend(cell.a) + ' ' + selectTaisou((d.w===TUES||d.w===THU)?cell.t:'') + ' ' + inputScore(cell.s);
-        }
-        frag.appendChild(tr);
-        tr.appendChild(td);
-      });
+    DATA[monthKey][rIdx].forEach((obj,cIdx)=>{
+      const td=document.createElement('td'); const date=dates[cIdx];
+      if(isWeekend(date)) td.classList.add('holiday');
+      buildCellContent(td,obj,rIdx,cIdx,monthKey,date);
+      tr.appendChild(td);
     });
 
-    // ringkasan
-    const sum = computeSummary(ri);
-    tr.appendChild(summaryCell(sum.hadir));
-    tr.appendChild(summaryCell(sum.sakit));
-    tr.appendChild(summaryCell(sum.izin));
-    tr.appendChild(summaryCell(sum.alpa));
-    tr.appendChild(summaryCell(sum.half));
-    tr.appendChild(summaryCell(sum.noTaisou));
-    const tdAvg = document.createElement('td');
-    tdAvg.textContent = isFinite(sum.avg)? sum.avg.toFixed(1) : '-';
-    if(isFinite(sum.avg)){
-      if(sum.avg<70) tdAvg.className='avg bad'; else if(sum.avg<80) tdAvg.className='avg mid';
-    }
-    tr.appendChild(tdAvg);
-
-    frag.appendChild(tr);
-  });
-
-  tbody.innerHTML='';
-  tbody.appendChild(frag);
-}
-
-function selectAttend(v){
-  const opts = ['','hadir','sakit','izin','alpa','半'];
-  return `<select class="att" aria-label="absen">${opts.map(o=>`<option value="${o}" ${o===v?'selected':''}>${o}</option>`).join('')}</select>`;
-}
-function selectTaisou(v){
-  const opts = ['','hadir','tdk'];
-  return `<select class="tai" aria-label="taisou">${opts.map(o=>`<option value="${o}" ${o===v?'selected':''}>${o||'—'}</option>`).join('')}</select>`;
-}
-function inputScore(v){
-  return `<input class="score" type="number" min="0" max="100" step="1" value="${v??''}" aria-label="nilai">`;
-}
-function summaryCell(n){
-  const td=document.createElement('td'); td.innerHTML=`<span class="pill">${n}</span>`; return td;
-}
-
-/********************
- * EVENT DELEGATION
- ********************/
-
-tbody.addEventListener('change', onBodyChange);
-tbody.addEventListener('input', onBodyInput);
-
-function cellRefFromTarget(t){
-  const td = t.closest('td');
-  if(!td) return null;
-  const ri = +td.dataset.r; const mi = +td.dataset.m; const ci = +td.dataset.c;
-  if([ri,mi,ci].some(n=>Number.isNaN(n))) return null;
-  return {ri,mi,ci, td};
-}
-
-function onBodyChange(e){
-  const ref = cellRefFromTarget(e.target);
-  if(!ref) return;
-  const {ri,mi,ci,td} = ref;
-  const d = DATES[mi][ci];
-  const cell = DATA[mi][ri][ci];
-
-  if(e.target.classList.contains('att')){
-    cell.a = e.target.value||'';
-  }
-  if(e.target.classList.contains('tai')){
-    // hanya berlaku selasa/kamis/sabtu; lainnya tetap kosong
-    if(d.w===TUES||d.w===THU||d.w===SAT) cell.t = e.target.value||''; else cell.t='';
-  }
-  updateRowSummary(ri);
-}
-
-function onBodyInput(e){
-  if(!e.target.classList.contains('score')) return;
-  const ref = cellRefFromTarget(e.target); if(!ref) return;
-  const {ri,mi,ci} = ref; const cell = DATA[mi][ri][ci];
-  const n = clampScore(e.target.value);
-  cell.s = n;
-  e.target.value = n??'';
-  e.target.classList.remove('bad','mid');
-  if(n!==null){
-    if(n<70) e.target.classList.add('bad'); else if(n<80) e.target.classList.add('mid');
-    if(!cell.a) cell.a='hadir'; // isi nilai → set hadir bila kosong
-  }
-  updateRowSummary(ri);
-}
-
-function updateRowSummary(ri){
-  // cukup re-render ringkasan kolom terakhir baris ri (hemat DOM)
-  const tr = tbody.children[ri]; if(!tr) return;
-  const sum = computeSummary(ri);
-  const base = 1 + DATES.reduce((acc,days)=>acc+days.length,0); // offset sesudah semua tanggal
-  tr.children[base+0].querySelector('.pill').textContent = sum.hadir;
-  tr.children[base+1].querySelector('.pill').textContent = sum.sakit;
-  tr.children[base+2].querySelector('.pill').textContent = sum.izin;
-  tr.children[base+3].querySelector('.pill').textContent = sum.alpa;
-  tr.children[base+4].querySelector('.pill').textContent = sum.half;
-  tr.children[base+5].querySelector('.pill').textContent = sum.noTaisou;
-  const tdAvg = tr.children[base+6];
-  tdAvg.textContent = isFinite(sum.avg)? sum.avg.toFixed(1) : '-';
-  tdAvg.classList.remove('bad','mid','avg');
-  if(isFinite(sum.avg)){
-    tdAvg.classList.add('avg');
-    if(sum.avg<70) tdAvg.classList.add('bad'); else if(sum.avg<80) tdAvg.classList.add('mid');
-  }
-}
-
-/********************
- * PERHITUNGAN RINGKASAN & RANKING
- ********************/
-function computeSummary(ri, monthFilter='all'){
-  let hadir=0,sakit=0,izin=0,alpa=0,half=0,noTaisou=0;
-  let sum=0, cnt=0;
-  const monthIdxs = monthFilter==='all' ? [0,1,2] : [monthFilter];
-
-  monthIdxs.forEach(mi=>{
-    const days = DATES[mi];
-    for(let ci=0; ci<days.length; ci++){
-      const d = days[ci]; const cell = DATA[mi][ri][ci];
-      if(d.w===SUN){ continue; }
-      if(d.w===SAT){ // sabtu
-        if(cell.t==='tdk') noTaisou++;
-        continue;
-      }
-      // kerja hari
-      if(cell.a==='hadir') hadir++;
-      else if(cell.a==='sakit') sakit++;
-      else if(cell.a==='izin') izin++;
-      else if(cell.a==='alpa') alpa++;
-      else if(cell.a==='半') half++;
-      if(d.w===TUES||d.w===THU){ if(cell.t==='tdk') noTaisou++; }
-      if(cell.s!==null){ sum += cell.s; cnt++; }
-    }
-  });
-  const avg = cnt? (sum/cnt) : NaN;
-  return {hadir,sakit,izin,alpa,half,noTaisou,avg};
-}
-
-function ranking(order='desc', monthFilter='all'){
-  const idx = PEOPLE.map((p,i)=>{
-    const s = computeSummary(i, monthFilter);
-    return {i, avg: isFinite(s.avg)? s.avg : -Infinity};
-  });
-  idx.sort((a,b)=> (order==='desc'? b.avg-a.avg : a.avg-b.avg));
-  return idx.map(x=>x.i);
-}
-
-/********************
- * CETAK / PDF
- ********************/
-const printDlg = document.getElementById('printDlg');
-const printOrderSel = document.getElementById('printOrder');
-const printMonths = document.getElementById('printMonths');
-const goPrint = document.getElementById('goPrint');
-
-document.getElementById('printBtn').addEventListener('click', ()=>{
-  printDlg.showModal();
-});
-
-goPrint.addEventListener('click', ()=>{
-  printDlg.close();
-  const order = printOrderSel.value; // 'abs' | 'az' | 'rank'
-  const m = printMonths.value; // 'all' | 'm0' | 'm1' | 'm2'
-  const monthFilter = m==='all'? 'all' : Number(m.slice(1));
-
-  // siapkan data rekap
-  let rows = PEOPLE.map((p,i)=>({
-    name: p.name,
-    ...computeSummary(i, monthFilter)
-  }));
-
-  // urut sesuai pilihan
-  if(order==='az') rows.sort((a,b)=> a.name.localeCompare(b.name,'id'));
-  else if(order==='rank') rows.sort((a,b)=> (isFinite(b.avg)?b.avg:-Infinity) - (isFinite(a.avg)?a.avg:-Infinity));
-  // 'abs' tetap sesuai PEOPLE
-
-  // buat jendela cetak sederhana tanpa menyisipkan <\/script> dalam string
-  const win = window.open('', '_blank');
-  const title = document.getElementById('title').textContent || 'Kelas';
-  const monthsText = document.getElementById('monthsLabel').textContent || '';
-  const style = `body{font:13px/1.4 system-ui,Segoe UI,Roboto} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px 8px;text-align:center} th{text-align:center;background:#f3f4f6} td.name{text-align:left}`;
-  const head = `<h2 style=\"margin:6px 0\">Rekap ${title} — ${monthsText}</h2><div style=\"margin:4px 0\">Urutan: ${order==='az'?'Abjad':order==='rank'?'Rangking':'Mutlak'}. Bulan: ${m==='all'?'Semua':MONTHS[monthFilter].label}</div>`;
-  const tHead = `<tr><th>Nama</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th><th>半</th><th>Tak Taisou</th><th>Rata-rata</th></tr>`;
-  const tRows = rows.map(r=>`<tr><td class=\"name\">${escapeHtml(r.name)}</td><td>${r.hadir}</td><td>${r.sakit}</td><td>${r.izin}</td><td>${r.alpa}</td><td>${r.half}</td><td>${r.noTaisou}</td><td>${isFinite(r.avg)?r.avg.toFixed(1):'-'}</td></tr>`).join('');
-  const html = `<!doctype html><html><head><meta charset=\"utf-8\"><title>Rekap</title><style>${style}</style></head><body>${head}<table>${tHead}${tRows}</table></body></html>`;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  setTimeout(()=>{ try { win.focus(); win.print(); } catch(_){} }, 50);
-});
-  const order = printOrderSel.value; // 'abs' | 'az' | 'rank'
-  const m = printMonths.value; // 'all' | 'm0' | 'm1' | 'm2'
-  const monthFilter = m==='all'? 'all' : Number(m.slice(1));
-
-  // siapkan data rekap
-  let rows = PEOPLE.map((p,i)=>({
-    name: p.name,
-    ...computeSummary(i, monthFilter)
-  }));
-
-  // urut sesuai pilihan
-  if(order==='az') rows.sort((a,b)=> a.name.localeCompare(b.name,'id'));
-  else if(order==='rank') rows.sort((a,b)=> (isFinite(b.avg)?b.avg:-Infinity) - (isFinite(a.avg)?a.avg:-Infinity));
-  // 'abs' tetap sesuai PEOPLE
-
-  // buat jendela cetak sederhana
-  const win = window.open('', '_blank');
-  const title = document.getElementById('title').textContent || 'Kelas';
-  const monthsText = document.getElementById('monthsLabel').textContent || '';
-  const style = `body{font:13px/1.4 system-ui,Segoe UI,Roboto} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px 8px;text-align:center} th{text-align:center;background:#f3f4f6} td.name{text-align:left}`;
-  const head = `<h2 style="margin:6px 0">Rekap ${title} — ${monthsText}</h2><div style="margin:4px 0">Urutan: ${order==='az'?'Abjad':order==='rank'?'Rangking':'Mutlak'}. Bulan: ${m==='all'?'Semua':MONTHS[monthFilter].label}</div>`;
-  const tHead = `<tr><th>Nama</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th><th>半</th><th>Tak Taisou</th><th>Rata-rata</th></tr>`;
-  const tRows = rows.map(r=>`<tr><td class="name">${escapeHtml(r.name)}</td><td>${r.hadir}</td><td>${r.sakit}</td><td>${r.izin}</td><td>${r.alpa}</td><td>${r.half}</td><td>${r.noTaisou}</td><td>${isFinite(r.avg)?r.avg.toFixed(1):'-'}</td></tr>`).join('');
-  win.document.write(`<html><head><meta charset="utf-8"><title>Rekap</title><style>${style}</style></head><body>${head}<table>${tHead}${tRows}</table><script>window.onload=()=>window.print()<\/script></body></html>`);
-  win.document.close();
-});
-
-/********************
- * UNDUH / MUAT JSON
- ********************/
-const downloadBtn = document.getElementById('downloadBtn');
-const uploadBtn = document.getElementById('uploadBtn');
-const fileInput = document.getElementById('fileInput');
-
-function downloadJSON(){
-  const data = collectAllData();
-  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  const title = document.getElementById('title').textContent || 'kelas';
-  a.download = `${title.replace(/\s+/g,'_')}_${MONTHS.map(m=>m.label.split(' ')[0]).join('-')}.json`;
-  a.href = URL.createObjectURL(blob);
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-}
-
-function uploadJSON(){
-  fileInput.click();
-}
-
-fileInput.addEventListener('change', async ()=>{
-  const f = fileInput.files[0]; if(!f) return;
-  try{
-    const text = await f.text();
-    const j = JSON.parse(text);
-    applyAllData(j);
-  }catch(e){ alert('Gagal memuat JSON: '+(e.message||e)); }
-  finally{ fileInput.value=''; }
-});
-
-downloadBtn.addEventListener('click', downloadJSON);
-uploadBtn.addEventListener('click', uploadJSON);
-
-/********************
- * TAMBAH NAMA & SORT
- ********************/
-const addBtn = document.getElementById('addBtn');
-const newName = document.getElementById('newName');
-
-function addPerson(){
-  const v = (newName.value||'').trim();
-  if(!v) return;
-  PEOPLE.push({id:uuid(), name:v});
-  newName.value='';
-  renderBody();
-}
-addBtn.addEventListener('click', addPerson);
-newName.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addPerson(); }});
-
-const sortAZ = document.getElementById('sortAZ');
-const sortAbs = document.getElementById('sortAbs');
-let ABSOLUTE_ORDER = []; // simpan id urutan mutlak
-
-function recordAbsolute(){ ABSOLUTE_ORDER = PEOPLE.map(p=>p.id); }
-
-sortAZ.addEventListener('click', ()=>{
-  PEOPLE.sort((a,b)=> a.name.localeCompare(b.name,'id'));
-  renderBody();
-});
-sortAbs.addEventListener('click', ()=>{
-  if(!ABSOLUTE_ORDER.length) return;
-  PEOPLE.sort((a,b)=> ABSOLUTE_ORDER.indexOf(a.id) - ABSOLUTE_ORDER.indexOf(b.id));
-  renderBody();
-});
-
-/********************
- * CLEAR ALL (double confirm)
- ********************/
-const wipeDlg = document.getElementById('wipeDlg');
-const wipeConfirm = document.getElementById('wipeConfirm');
-const doWipe = document.getElementById('doWipe');
-
-document.getElementById('clearAll').addEventListener('click', ()=>{
-  wipeConfirm.value=''; doWipe.disabled=true; wipeDlg.showModal();
-});
-
-wipeConfirm.addEventListener('input', ()=>{
-  doWipe.disabled = wipeConfirm.value.trim() !== 'HAPUS SEMUA';
-});
-
-doWipe.addEventListener('click', ()=>{
-  wipeDlg.close();
-  PEOPLE = [];
-  DATA = DATES.map(days=>[]);
-  renderBody();
-});
-
-/********************
- * EXPORT UNTUK INDEX.HTML
- ********************/
-function collectAllData(){
-  return { title: TITLE, months: MONTHS, people: PEOPLE, dates: DATES, data: DATA };
-}
-
-function coerceCell(x, d){
-  const out = {a:'', t:'', s:null};
-  if(x && typeof x==='object'){
-    if(typeof x.a==='string') out.a = x.a;
-    if(typeof x.t==='string') out.t = (d.w===TUES||d.w===THU||d.w===SAT)? x.t : '';
-    const s = clampScore(x.s);
-    out.s = (d.w===SUN||d.w===SAT)? null : s;
-  }
-  return out;
-}
-
-function applyAllData(j){
-  try{
-    // Back-compat: jika people berupa array string, konversi ke {id,name}
-    if(Array.isArray(j.people)){
-      PEOPLE = j.people.map(p=> typeof p==='string'? {id:uuid(), name:p} : {id:p.id||uuid(), name:p.name||''});
-    }
-    if(Array.isArray(j.months) && j.months.length===3){
-      // keep our MONTHS but recalc dates if ym berbeda
-      const same = j.months.every((m,i)=> m.ym===MONTHS[i].ym);
-      if(!same){
-        // optional: adopt incoming months
-        // MONTHS = j.months; // (biarkan tetap — bisa diaktifkan jika mau sinkron penuh)
-      }
-    }
-    if(Array.isArray(j.dates) && j.dates.length===3){
-      // coercion tanggal (pakai tanggal bawaan app agar stabil)
-    }
-
-    // DATA
-    DATA = DATES.map((days,mi)=>{
-      const rows = (j.data && j.data[mi])? j.data[mi] : [];
-      const outRows = [];
-      for(let ri=0; ri<PEOPLE.length; ri++){
-        const row = rows[ri] || [];
-        outRows.push(days.map((d,ci)=> coerceCell(row[ci], d)));
-      }
-      return outRows;
+    ['hadir','sakit','izin','alpa','han','tdkTaisou','avg'].forEach(key=>{
+      const td=document.createElement('td'); td.className='totals-cell'+(key==='avg'?' avg-col':''); tr.appendChild(td);
     });
 
-    recordAbsolute();
-    renderHead();
-    renderBody();
+    tbody.appendChild(tr);
+    updateTotalsCells(tr,monthKey,rIdx);
+  });
+}
+
+/* ========= Helper isian nilai ========= */
+function parseBulkInput(txt) {
+  if (!txt) return {range: null, scores: []};
+  const m = txt.match(/^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(.+)$/);
+  if (m) {
+    const scores = m[3].trim().split(/[\s,;]+/).map(s => Number(s)).filter(n => !isNaN(n));
+    return {range: [Number(m[1]), Number(m[2])], scores};
+  }
+  const scores = txt.trim().split(/[\s,;]+/).map(s => Number(s)).filter(n => !isNaN(n));
+  return {range: null, scores};
+}
+function eligibleDateIndices(monthKey, startDay, endDay) {
+  const arr = [];
+  const dates = DATES[monthKey];
+  for (let i = 0; i < dates.length; i++) {
+    const d = dates[i];
+    const day = d.getDate();
+    if (startDay != null && endDay != null) {
+      if (day < startDay || day > endDay) continue;
+    }
+    if (isSunday(d) || isSaturday(d)) continue;
+    arr.push(i);
+  }
+  return arr;
+}
+function fillRowScores(rowIdx, monthKey, startDay, endDay, scores) {
+  const idxs = eligibleDateIndices(monthKey, startDay, endDay);
+  let k = 0;
+  for (const cIdx of idxs) {
+    if (k >= scores.length) break;
+    const n = Number(scores[k++]);
+    if (isNaN(n)) continue;
+    const clamped = Math.max(0, Math.min(100, n));
+    const cell = DATA[monthKey][rowIdx][cIdx];
+    cell.s = clamped;
+    cell.a = 'hadir';
+  }
+}
+
+/* ========= Modal Order untuk tombol ＋ ========= */
+const orderModal = document.getElementById('orderModal');
+let orderResolve = null;
+function openOrderModal(){ orderModal.style.display='flex'; return new Promise(res=>orderResolve=res); }
+function closeOrderModal(){ orderModal.style.display='none'; orderResolve=null; }
+document.getElementById('orderCancel').addEventListener('click', ()=>{ orderResolve && orderResolve(null); closeOrderModal(); });
+document.getElementById('orderMutlak').addEventListener('click', ()=>{ orderResolve && orderResolve('mutlak'); closeOrderModal(); });
+document.getElementById('orderAbjad').addEventListener('click', ()=>{ orderResolve && orderResolve('abjad'); closeOrderModal(); });
+
+/* ========= Bulk isi nilai PER TANGGAL ========= */
+async function bulkFillForDate(monKey, cIdx){
+  const d = DATES[monKey][cIdx];
+  if (isWeekend(d)) { alert('Tidak bisa mengisi nilai otomatis pada Sabtu/Minggu.'); return; }
+
+  const mode = await openOrderModal(); // 'mutlak' | 'abjad' | null
+  if (!mode) return;
+
+  let orderNamesUpper = [];
+  if(mode === 'mutlak'){
+    orderNamesUpper = ABSOLUTE_ORDER.slice();
+  } else {
+    orderNamesUpper = PEOPLE.map(p => (p.name||'').trim().toUpperCase())
+                            .sort((a,b)=>a.localeCompare(b,'id',{sensitivity:'base'}));
+  }
+
+  const sample =
+`89
+84
+87
+87
+87
+81
+79
+74
+70
+74
+77
+84
+71
+80
+74
+77
+74
+74`;
+  const tgl = d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  const inText = prompt(`Tempel ${orderNamesUpper.length} nilai berurutan sesuai urutan ${mode.toUpperCase()} untuk ${tgl}:`, sample);
+  if(inText==null) return;
+
+  const arr = String(inText).trim().split(/[\s,;]+/).map(Number).filter(n=>!isNaN(n));
+  if(arr.length !== orderNamesUpper.length){
+    alert(`Butuh ${orderNamesUpper.length} nilai. Kamu memasukkan ${arr.length}.`);
+    return;
+  }
+
+  const nameToRow = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
+  for(let i=0;i<orderNamesUpper.length;i++){
+    const nm = orderNamesUpper[i];
+    const rowIdx = nameToRow.get(nm);
+    if(rowIdx == null) continue;
+    const n = Math.max(0, Math.min(100, arr[i]));
+    const cell = DATA[monKey][rowIdx][cIdx];
+    cell.s = n;
+    cell.a = 'hadir';
+  }
+  renderAll();
+}
+
+/* ========= Clear Day ========= */
+let pendingClear = null; // {monKey, cIdx}
+const clearDayModal = document.getElementById('clearDayModal');
+const clearDayLabel = document.getElementById('clearDayLabel');
+function openClearDayModal(monKey, cIdx){
+  pendingClear = {monKey, cIdx};
+  const d = DATES[monKey][cIdx];
+  clearDayLabel.textContent = 'Tanggal: ' + d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  clearDayModal.style.display='flex';
+}
+function closeClearDayModal(){ clearDayModal.style.display='none'; pendingClear=null; }
+
+document.getElementById('clearDayCancel').addEventListener('click', closeClearDayModal);
+document.getElementById('clearDayScores').addEventListener('click', ()=>{
+  if(!pendingClear) return;
+  const {monKey,cIdx}=pendingClear;
+  for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx].s=null; }
+  closeClearDayModal(); renderAll();
+});
+document.getElementById('clearDayBoth').addEventListener('click', ()=>{
+  if(!pendingClear) return;
+  const {monKey,cIdx}=pendingClear;
+  for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx]={a:'',t:'',s:null}; }
+  closeClearDayModal(); renderAll();
+});
+
+/* ========= Print Summary ========= */
+const printModal = document.getElementById('printModal');
+function openPrintModal(){ printModal.style.display='flex'; }
+function closePrintModal(){ printModal.style.display='none'; }
+document.getElementById('btnPrint').addEventListener('click', openPrintModal);
+document.getElementById('printCancel').addEventListener('click', closePrintModal);
+document.getElementById('printOrderMutlak').addEventListener('click', ()=>{
+  buildPrintSummary('mutlak'); closePrintModal(); window.print();
+});
+document.getElementById('printOrderAbjad').addEventListener('click', ()=>{
+  buildPrintSummary('abjad'); closePrintModal(); window.print();
+});
+document.getElementById('printOrderRank').addEventListener('click', ()=>{
+  buildPrintSummary('rank'); closePrintModal(); window.print();
+});
+
+function buildPrintSummary(orderMode){
+  const monthKey = monthSel.value;
+  const dates = DATES[monthKey];
+  const psTitle = document.getElementById('psTitle');
+  const psMeta  = document.getElementById('psMeta');
+  const psBody  = document.getElementById('psBody');
+
+  psTitle.textContent = (titleInput.value || 'Kelas N4 Rasen') + ' — Rekap ' + dates[0].toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+  psMeta.textContent  =
+    'Urutan: ' + (
+      orderMode==='mutlak' ? 'Mutlak/Awal' :
+      orderMode==='abjad'  ? 'Abjad (A→Z)' :
+      'Ranking (rata-rata turun)'
+    ) + ' — Hanya nama, akumulasi, rata-rata nilai (hari kerja).';
+
+  let orderIdx = [];
+  if(orderMode==='mutlak'){
+    const mapNameToIdx = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
+    orderIdx = ABSOLUTE_ORDER
+      .map(nm => mapNameToIdx.has(nm) ? mapNameToIdx.get(nm) : null)
+      .filter(i => i!==null);
+    for(let i=0;i<PEOPLE.length;i++){ if(!orderIdx.includes(i)) orderIdx.push(i); }
+  }else if(orderMode==='abjad'){
+    orderIdx = PEOPLE.map((p,i)=>[i,(p.name||'')]).sort((A,B)=>A[1].localeCompare(B[1],'id',{sensitivity:'base'})).map(x=>x[0]);
+  }else{
+    // ranking by average (desc). null averages go to bottom; tie-break by name asc.
+    orderIdx = PEOPLE.map((p,i)=>{
+      const t = countTotals(DATA[monthKey][i], monthKey);
+      const avg = (t.avg==null || isNaN(t.avg)) ? -Infinity : t.avg;
+      return {i, avg, name:(p.name||'')};
+    }).sort((A,B)=>{
+      if(B.avg!==A.avg) return B.avg - A.avg;
+      return A.name.localeCompare(B.name,'id',{sensitivity:'base'});
+    }).map(x=>x.i);
+  }
+
+  psBody.innerHTML = '';
+  for(const r of orderIdx){
+    const t = countTotals(DATA[monthKey][r], monthKey);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:left">${PEOPLE[r].name||''}</td>
+      <td>${t.hadir}</td>
+      <td>${t.sakit}</td>
+      <td>${t.izin}</td>
+      <td>${t.alpa}</td>
+      <td>${t.hanCnt}</td>
+      <td>${t.tdkTaisou}</td>
+      <td>${t.avg==null?'':t.avg.toFixed(1)}</td>`;
+    psBody.appendChild(tr);
+  }
+}
+
+/* ========= Render & CRUD ========= */
+function renderAll(){ const key=monthSel.value; buildHeader(key); buildBody(key); }
+
+function clearAll(){
+  if(!confirm('Hapus SEMUA data termasuk NAMA?')) return;
+  PEOPLE=[];
+  DATA = {september:[], oktober:[], november:[]};
+  renderAll();
+}
+
+/* ========= Export/Import JSON ========= */
+function collectAllData(){ return {
+  title:TITLE,
+  people:PEOPLE.map(p=>({name:p.name})),
+  dates:{
+    september:DATES.september.map(toLocalYMD),
+    oktober:  DATES.oktober.map(toLocalYMD),
+    november: DATES.november.map(toLocalYMD)
+  },
+  values:DATA, month:monthSel.value
+};}
+
+function coerceCell(mon, c, raw){
+  const d = DATES[mon][c]; const weekend=(d.getDay()===0||d.getDay()===6);
+  if (raw==null) return {a:'',t:'',s:null};
+  if (typeof raw==='object'){
+    const a = raw.a || ''; const t = raw.t || ''; let s = (raw.s===undefined? null : raw.s);
+    if (weekend) s = null; return {a,t,s};
+  }
+  let n = Number(raw);
+  if (!isNaN(n)) return weekend ? {a:'',t:'',s:null} : {a:'hadir',t:'',s: Math.max(0, Math.min(100,n))};
+  const txt = String(raw).toLowerCase(); const allowed={'hadir':1,'sakit':1,'izin':1,'alpa':1,'半':1};
+  return {a:(allowed[txt]?txt:''), t:'', s:null};
+}
+
+function applyAllData(obj){
+  try{
+    if(!obj || !obj.values) throw new Error('struktur kosong');
+    TITLE = obj.title || TITLE; titleInput.value=TITLE;
+    if (Array.isArray(obj.people)) PEOPLE=obj.people.map(p=>({name:p.name||''}));
+    MONTHS.forEach(mon=>{
+      const cols=DATES[mon].length; const incoming=obj.values[mon];
+      if (!Array.isArray(incoming)) throw new Error('values.'+mon+' bukan array');
+      const rows=PEOPLE.length; const out=[];
+      for(let r=0;r<rows;r++){
+        const srcRow=incoming[r]||[]; const row=[];
+        for(let c=0;c<cols;c++){ row.push( coerceCell(mon,c,srcRow[c]) ); }
+        out.push(row);
+      }
+      DATA[mon]=out;
+    });
+    monthSel.value = (MONTHS.includes(obj.month)? obj.month : 'september');
+    renderAll();
   }catch(e){
-    alert('Gagal apply data: '+(e.message||e));
+    console.error(e);
+    alert('File tidak valid / schema beda. Pastikan memakai file JSON dari aplikasi ini.');
   }
 }
 
-/********************
- * MISC
- ********************/
-function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+/* ====== NO-OP storage (dimatikan) ====== */
+function saveToLocal(){ /* dimatikan */ }
+function loadFromLocal(){ return false; }
+function clearLocal(){ /* dimatikan */ }
 
-/********************
- * BOOT
- ********************/
-(function boot(){
-  document.getElementById('title').textContent = TITLE;
-  document.getElementById('monthsLabel').textContent = MONTHS.map(m=>m.label).join(' – ');
-  recordAbsolute();
-  renderHead();
-  renderBody();
-})();
-<\/script>
+/* ========= Sorting & CRUD ========= */
+function sortAZ(){
+  const idxs=PEOPLE.map((_,i)=>i).sort((a,b)=>(PEOPLE[a].name||'').toLowerCase().localeCompare((PEOPLE[b].name||'').toLowerCase()));
+  PEOPLE=idxs.map(i=>PEOPLE[i]);
+  MONTHS.forEach(mon=>{DATA[mon]=idxs.map(i=>DATA[mon][i]);});
+  renderAll();
+}
+function sortMutlak(){
+  const mapNameToIdx = new Map(PEOPLE.map((p,i)=>[(p.name||'').trim().toUpperCase(), i]));
+  let idxs = ABSOLUTE_ORDER.map(nm => mapNameToIdx.has(nm) ? mapNameToIdx.get(nm) : null).filter(i => i !== null);
+  for (let i = 0; i < PEOPLE.length; i++) { if (!idxs.includes(i)) idxs.push(i); }
+  PEOPLE = idxs.map(i => PEOPLE[i]);
+  MONTHS.forEach(mon=>{ DATA[mon] = idxs.map(i => DATA[mon][i]); });
+  renderAll();
+}
+function addPerson(name){
+  if(!name) return;
+  PEOPLE.push({name});
+  MONTHS.forEach(mon=>{ DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null}))); });
+  document.getElementById('newName').value=''; renderAll();
+}
+function removePerson(rIdx){
+  PEOPLE.splice(rIdx,1);
+  MONTHS.forEach(mon=>DATA[mon].splice(rIdx,1));
+  renderAll();
+}
+
+/* ========= Init & events ========= */
+titleInput.value=TITLE; titleInput.addEventListener('input',()=>{TITLE=titleInput.value;});
+if(!loadFromLocal()) renderAll();
+
+document.getElementById('btnClear').addEventListener('click',clearAll);
+
+// Unduh / Muat JSON
+document.getElementById('btnSave').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(collectAllData())],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kelas_N4_rasen_absensi_Sept-Nov_2025.json'; a.click();
+});
+const fileInput=document.getElementById('fileInput');
+document.getElementById('btnLoad').addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return; const rdr=new FileReader();
+  rdr.onload=()=>{ try{ applyAllData(JSON.parse(rdr.result)); } catch(err){ alert('File tidak valid / bukan JSON.'); } };
+  rdr.readAsText(f); fileInput.value='';
+});
+
+document.getElementById('btnSortAZ').addEventListener('click',sortAZ);
+document.getElementById('btnSortMutlak').addEventListener('click',sortMutlak);
+document.getElementById('btnAdd').addEventListener('click',()=>addPerson(document.getElementById('newName').value.trim()));
+document.getElementById('newName').addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('btnAdd').click();}});
+monthSel.addEventListener('change',()=>{renderAll();});
+</script>
 </body>
 </html>
