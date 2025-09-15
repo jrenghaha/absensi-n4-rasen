@@ -412,7 +412,6 @@ function buildCellContent(td,obj,rIdx,cIdx,monthKey,date){
     selT.value=obj.t||''; selT.addEventListener('change',()=>{obj.t=selT.value; updateTotalsCells(td.parentElement,monthKey,rIdx);});
     wrap.appendChild(selT);
 
-    // Sabtu: nilai boleh negatif
     const score=document.createElement('input'); score.type='number'; score.className='score'; score.min='-100'; score.max='100'; score.step='1'; score.placeholder='Nilai';
     score.value=(obj.s===null||obj.s==='')?'':obj.s;
     const onScore=()=>{let v=String(score.value||'').trim(); if(v===''){obj.s=null; setScoreVisual(score,null);} else{let n=Number(v); if(isNaN(n)) n=null; else n=Math.max(-100,Math.min(100,n)); obj.s=n; setScoreVisual(score,n);} updateTotalsCells(td.parentElement,monthKey,rIdx);};
@@ -453,7 +452,7 @@ function countTotals(rowObjs, monthKey){
     if(o.a==='sakit') sakit++; else if(o.a==='hadir') hadir++; else if(o.a==='alpa') alpa++; else if(o.a==='izin') izin++; else if(o.a==='半') hanCnt++;
     if(o.t==='izin taisou') izinTai++; if(o.t==='tidak hadir taisou') tdkTai++;
     const d = DATES[monthKey][cIdx];
-    if(!isSunday(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; } // Minggu di-skip; Sabtu ikut (boleh minus)
+    if(!isSunday(d) && o.s!==null && o.s!=='' && !isNaN(o.s)){ sum+=Number(o.s); cnt++; }
   }
   const avg = cnt ? (sum/cnt) : null;
   return {sakit,hadir,alpa,izin,izinTai,tdkTai,hanCnt,avg};
@@ -591,8 +590,15 @@ document.getElementById('rowFillApply').addEventListener('click',()=>{
 });
 
 /* ===== Clear tanggal ===== */
-let pendingClear=null; const clearDayModal=document.getElementById('clearDayModal'); const clearDayLabel=document.getElementById('clearDayLabel'];
-function openClearDayModal(monKey,cIdx){ pendingClear={monKey,cIdx}; const d=DATES[monKey][cIdx]; clearDayLabel.textContent='Tanggal: '+d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}); clearDayModal.style.display='flex'; }
+let pendingClear=null;
+const clearDayModal=document.getElementById('clearDayModal');
+const clearDayLabel=document.getElementById('clearDayLabel'); /* <-- FIX: kurungnya benar */
+function openClearDayModal(monKey,cIdx){
+  pendingClear={monKey,cIdx};
+  const d=DATES[monKey][cIdx];
+  clearDayLabel.textContent='Tanggal: '+d.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  clearDayModal.style.display='flex';
+}
 const closeClearDayModal=()=>{clearDayModal.style.display='none';pendingClear=null};
 document.getElementById('clearDayCancel').addEventListener('click',closeClearDayModal);
 document.getElementById('clearDayScores').addEventListener('click',()=>{ if(!pendingClear) return; const {monKey,cIdx}=pendingClear; for(let r=0;r<PEOPLE.length;r++){ DATA[monKey][r][cIdx].s=null; } closeClearDayModal(); renderAll(); });
@@ -682,7 +688,7 @@ document.getElementById('bulkAddCancel').addEventListener('click',()=>{bulkAddMo
 document.getElementById('bulkAddApply').addEventListener('click',()=>{const lines=parseNames(bulkAddArea.value); if(!lines.length){alert('Daftar nama kosong.');return;} if(bulkReplace.checked){PEOPLE=lines.map(n=>({name:n})); MONTHS.forEach(mon=>{DATA[mon]=PEOPLE.map(()=> DATES[mon].map(()=>({a:'',t:'',s:null})));}); ABSOLUTE_ORDER=lines.map(n=>n.toUpperCase());} else {const set=new Set(PEOPLE.map(p=>(p.name||'').trim().toUpperCase())); lines.forEach(n=>{if(!set.has(n.toUpperCase())){PEOPLE.push({name:n}); MONTHS.forEach(mon=> DATA[mon].push(DATES[mon].map(()=>({a:'',t:'',s:null})))); set.add(n.toUpperCase());}});} bulkAddModal.style.display='none'; renderAll();});
 
 /* ===== Atur urutan mutlak ===== */
-const orderEditModal=document.getElementById('orderEditModal'], orderEditArea=document.getElementById('orderEditArea');
+const orderEditModal=document.getElementById('orderEditModal'), orderEditArea=document.getElementById('orderEditArea');
 document.getElementById('btnSetOrder').addEventListener('click',()=>{orderEditArea.value='';orderEditModal.style.display='flex';});
 document.getElementById('orderEditCancel').addEventListener('click',()=>{orderEditModal.style.display='none';});
 document.getElementById('orderFillFromPeople').addEventListener('click',()=>{orderEditArea.value=PEOPLE.map(p=>p.name||'').join('\n');});
