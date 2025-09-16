@@ -1,23 +1,13 @@
-# Write a self-contained index.php per user's request.
-php_code = """<?php
-// Single-file index.php — no secrets embedded
-// - Password gate (Enter to submit)
-// - Auto-fetch Gist ID & Token from Google Docs publish URL
-// - Load/Save JSON to GitHub Gist
-//
-// NOTE: This requires a PHP-capable host (GitHub Pages does NOT run PHP).
-// You can override the Google Docs URL via query param: ?doc=<url>
-//
-$default_docs_url = 'https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt';
-$docs_url = isset($_GET['doc']) ? $_GET['doc'] : $default_docs_url;
-function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
-?><!DOCTYPE html>
+# Write index.html again using a placeholder and replace, to avoid f-string brace issues.
+doc_url = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt"
+
+html = r"""<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Absensi — Sync via Gist</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://docs.google.com https://docs.gstatic.com https://*.googleusercontent.com; frame-ancestors 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src https://api.github.com https://docs.google.com https://docs.gstatic.com https://*.googleusercontent.com; frame-ancestors 'none'; base-uri 'none'">
   <style>
     :root {
       --bg: #0b0f14; --card:#121821; --muted:#1a2330; --text:#e8eef6; --sub:#a9b7c6; --acc:#4da3ff; --danger:#ff5470; --ok:#2ecc71;
@@ -91,7 +81,7 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
       <div class="grid">
         <div>
           <label>Link Google Docs (publish-to-web)</label>
-          <input id="docUrl" type="url" value="<?php echo h($docs_url); ?>" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
+          <input id="docUrl" type="url" value="DOC_URL_PLACEHOLDER" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
           <div class="hint">
             Dokumen berisi 2 baris: <b>Baris-1 = GIST_ID</b>, <b>Baris-2 = TOKEN</b>. URL otomatis pakai <code>?output=txt</code>.
           </div>
@@ -152,7 +142,7 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
       <div class="hr"></div>
 
       <label>Data JSON</label>
-      <textarea id="jsonArea" placeholder="{ ... }"></textarea>
+      <textarea id="jsonArea" placeholder="[ ... ]"></textarea>
 
       <div class="hint">
         • Setelah <b>Load</b>, kamu bisa copy JSON ke app atau langsung <b>Save</b> untuk update storage di Gist.  
@@ -355,6 +345,9 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 </body>
 </html>
 """
-with open('/mnt/data/index.php', 'w', encoding='utf-8') as f:
-    f.write(php_code)
-print("Saved /mnt/data/index.php")
+html = html.replace("DOC_URL_PLACEHOLDER", doc_url)
+with open('/mnt/data/index.html', 'w', encoding='utf-8') as f:
+    f.write(html)
+with open('/mnt/data/.nojekyll', 'w', encoding='utf-8') as f:
+    f.write('')
+print("Saved index.html and .nojekyll")
