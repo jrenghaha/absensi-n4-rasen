@@ -849,5 +849,69 @@ window.applyAllData=function(obj){try{if(obj&&Array.isArray(obj.classes)) applyA
 })();
 </script>
 
+
+<!-- ==== Simpan ke Gist (inline, tanpa localStorage) ==== -->
+<script>
+(() => {
+  const DOC_URL  = 'https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt';
+  const FILE_NAME= 'absensi-n4-rasen.json';
+  const tokenRe  = /(?:gh[pous]_[A-Za-z0-9_\-]{20,}|github_pat_[A-Za-z0-9_\-]{20,})/;
+
+  function bubble(msg) {
+    let b = document.getElementById('gist-bubble');
+    if(!b){ b = document.createElement('div'); b.id='gist-bubble';
+      Object.assign(b.style, {position:'fixed',right:'18px',bottom:'68px',background:'#0f1724',color:'#dfe8f5',border:'1px solid #213144',borderRadius:'10px',padding:'8px 10px',fontSize:'12px',fontFamily:'system-ui,-apple-system,Segoe UI,Roboto,Arial',zIndex:99999,display:'none'});
+      document.body.appendChild(b);
+    }
+    b.textContent = msg; b.style.display='block'; clearTimeout(b._t); b._t = setTimeout(()=> b.style.display='none', 3000);
+  }
+
+  function ensureButton() {
+    if (document.getElementById('btnSaveGistCloud')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btnSaveGistCloud';
+    btn.textContent = 'Simpan ke Gist';
+    Object.assign(btn.style, {position:'fixed', right:'18px', bottom:'18px', zIndex:99999,
+      background:'#4593ff', color:'#061a2e', border:'1px solid #1a5bb8', borderRadius:'12px', padding:'12px 16px', fontWeight:'700', cursor:'pointer',
+      boxShadow:'0 10px 28px rgba(0,0,0,.35)'});
+    btn.addEventListener('click', saveNow);
+    document.body.appendChild(btn);
+  }
+
+  async function getCreds() {
+    const res = await fetch(DOC_URL, {mode:'cors'});
+    if(!res.ok) throw new Error('Gagal ambil GDocs ('+res.status+')');
+    const txt = await res.text();
+    const id = (txt.match(/\b[a-f0-9]{32}\b/i) || [])[0];
+    const tk = (txt.match(tokenRe) || [])[0];
+    if(!id || !tk) throw new Error('ID/Token tidak ditemukan di dokumen');
+    return { id, tk };
+  }
+
+  async function saveNow() {
+    try {
+      bubble('Mengambil kredensial…');
+      const {id, tk} = await getCreds();
+      const collect = window.collectAllData || window.collectAllDataV2;
+      if(typeof collect !== 'function') throw new Error('collectAllData() tidak ditemukan');
+      const data = collect();
+      bubble('Menyimpan ke Gist…');
+      const r = await fetch('https://api.github.com/gists/'+id, {
+        method:'PATCH',
+        headers: { 'Authorization':'Bearer '+tk, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' },
+        body: JSON.stringify({ files: { [FILE_NAME]: { content: JSON.stringify(data, null, 2) } } })
+      });
+      if(r.status===404) throw new Error('404 — Gist tidak ditemukan/izin kurang');
+      if(r.status===401) throw new Error('401 — Token tidak valid');
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      bubble('Tersimpan ✓');
+    } catch(e) {
+      console.error(e); bubble('Gagal: '+e.message); alert('Gagal menyimpan ke Gist: '+e.message);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', ensureButton);
+})();
+</script>
 </body>
 </html>
