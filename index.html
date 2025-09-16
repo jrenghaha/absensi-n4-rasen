@@ -1,10 +1,4 @@
-# Produce an updated HTML (index_gate_fixed2.html) that:
-# - Uses the provided Google Docs URL
-# - Fixes CSP to allow inline scripts
-# - Accepts both classic tokens (ghp_/gho_/ghs_/ghu_) and fine-grained tokens (github_pat_...)
-doc_url = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt"
-
-html = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
@@ -135,7 +129,7 @@ html = r"""<!DOCTYPE html>
 
   <script>
     const ACCESS_PW = "inipassword12";
-    const PRESET_DOC_URL = "DOCURL";
+    const PRESET_DOC_URL = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt";
 
     const $ = s => document.querySelector(s);
     const setStatus = (t, ok=false) => { const el = $('#status'); el.textContent = t; el.style.color = ok ? '#8ee39c' : '#ffbd59'; };
@@ -275,11 +269,3 @@ html = r"""<!DOCTYPE html>
   </script>
 </body>
 </html>
-"""
-html = html.replace("DOCURL", doc_url)
-with open('/mnt/data/index_gate_fixed2.html', 'w', encoding='utf-8') as f:
-    f.write(html)
-
-with open('/mnt/data/.nojekyll', 'w', encoding='utf-8') as f:
-    f.write('')
-"index_gate_fixed2.html written"
