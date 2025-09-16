@@ -711,5 +711,143 @@ fileInput.addEventListener('change',e=>{const f=e.target.files[0]; if(!f) return
 window.collectAllData=function(){try{return collectAllDataV2();}catch(e){console.error(e);alert('Gagal menyiapkan data untuk Sync.');return null;}};
 window.applyAllData=function(obj){try{if(obj&&Array.isArray(obj.classes)) applyAllDataV2(obj); else if(obj&&obj.values) applyAllDataV1(obj); else throw new Error('Schema tidak dikenal'); renderAll(); return true;}catch(e){console.error(e);alert('Data dari Sync tidak cocok.');return false;}};
 </script>
+  <script>
+/* ==== Auto Sync to Gist — drop-in untuk app.html ==== */
+(() => {
+  const LS = { id:'sync.gistId', tok:'sync.token', file:'sync.filename', doc:'sync.docUrl' };
+  const SYNC = {
+    id:   localStorage.getItem(LS.id)  || '',
+    tok:  localStorage.getItem(LS.tok) || '',
+    file: localStorage.getItem(LS.file)|| 'absensi-n4-rasen.json',
+    etag: null,           // diisi saat pull
+    dirty: false,         // ada perubahan lokal?
+    pullEveryMs: 5 * 60_000,  // cek update remote tiap 5 menit
+    pushDebounceMs: 2_000,    // tunda 2 detik sejak edit terakhir
+  };
+
+  // --- UI helper (opsional): update indikator kalau ada elemen status ---
+  const $ = s => document.querySelector(s);
+  function setStatus(text, kind='info') {
+    // cari elemen yang mungkin kamu punya; kalau tidak ada, skip
+    const el = $('#sync-status') || document.querySelector('[data-sync-status]');
+    if (el) el.textContent = text;
+    // kalau ada titik warna ala panelmu:
+    const dot = $('#sync-dot') || document.querySelector('[data-sync-dot]');
+    if (dot) {
+      dot.style.background = ({ok:'#2ecc71', err:'#ff5470', warn:'#ffbd59', info:'#9fb0c2'})[kind] || '#9fb0c2';
+    }
+    // fallback ke console
+    console.log('[Sync]', text);
+  }
+
+  // --- GitHub helpers ---
+  const GH = {
+    url() { return `https://api.github.com/gists/${SYNC.id}`; },
+    headers(extra = {}) {
+      return Object.assign({
+        'Authorization': 'Bearer ' + SYNC.tok,
+        'Accept': 'application/vnd.github+json'
+      }, extra);
+    }
+  };
+
+  async function pullOnce() {
+    if (!SYNC.id || !SYNC.tok) { setStatus('Sync: kredensial belum terset', 'err'); return; }
+    setStatus('Sync: memuat dari Gist…', 'warn');
+    const res = await fetch(GH.url(), {
+      headers: SYNC.etag ? GH.headers({'If-None-Match': SYNC.etag}) : GH.headers()
+    });
+    if (res.status === 304) { setStatus('Sync: up-to-date'); return; }
+    if (res.status === 404) { setStatus('GitHub API 404 — Gist tidak ditemukan/izin kurang', 'err'); return; }
+    if (res.status === 401) { setStatus('GitHub API 401 — Token tidak valid', 'err'); return; }
+    if (!res.ok)          { setStatus('GitHub API ' + res.status, 'err'); return; }
+
+    SYNC.etag = res.headers.get('ETag') || null;
+    const j = await res.json();
+    const f = j.files && j.files[SYNC.file];
+    if (!f) { setStatus(`File "${SYNC.file}" tidak ada di Gist`, 'err'); return; }
+
+    let txt = f.content || '';
+    if (f.truncated && f.raw_url) txt = await fetch(f.raw_url).then(r => r.text());
+
+    try {
+      const data = JSON.parse(txt);
+      if (typeof window.applyAllData === 'function') {
+        window.applyAllData(data);
+      }
+      SYNC.dirty = false;
+      setStatus('Sync: termuat dari Gist', 'ok');
+    } catch (e) {
+      setStatus('JSON remote tidak valid: ' + e.message, 'err');
+    }
+  }
+
+  let pushTimer = null;
+  function schedulePush() {
+    if (!SYNC.id || !SYNC.tok) return;
+    SYNC.dirty = true;
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushNow, SYNC.pushDebounceMs);
+  }
+
+  async function pushNow() {
+    if (!SYNC.dirty) return;
+    try {
+      const data = typeof window.collectAllData === 'function'
+        ? window.collectAllData()
+        : null;
+      if (!data) return setStatus('collectAllData() tidak tersedia', 'err');
+
+      const body = { files: { [SYNC.file]: { content: JSON.stringify(data, null, 2) } } };
+      setStatus('Sync: menyimpan ke Gist…', 'warn');
+      const r = await fetch(GH.url(), {
+        method: 'PATCH',
+        headers: GH.headers({'Content-Type':'application/json'}),
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) { setStatus('Gagal simpan: ' + r.status, 'err'); return; }
+      SYNC.etag = r.headers.get('ETag') || SYNC.etag;
+      SYNC.dirty = false;
+      setStatus('Sync: tersimpan', 'ok');
+    } catch (e) {
+      setStatus('Gagal simpan: ' + e.message, 'err');
+    }
+  }
+
+  // --- Wiring: auto-pull on load, auto-push on changes, periodic refresh ---
+  function startAutoSync() {
+    if (!SYNC.id || !SYNC.tok) {
+      setStatus('Sync otomatis off — kredensial kosong (buka index.html dulu)', 'err');
+      return;
+    }
+    pullOnce(); // initial load
+
+    // deteksi perubahan form / input → jadwalkan push
+    // (kalau app punya container utama, ganti document.body dengan container tsb)
+    document.body.addEventListener('input',  schedulePush, true);
+    document.body.addEventListener('change', schedulePush, true);
+
+    // refresh remote tiap beberapa menit (pakai ETag untuk hemat)
+    setInterval(pullOnce, SYNC.pullEveryMs);
+
+    // expose untuk dipakai manual
+    window.SyncCloud = {
+      pull: pullOnce,
+      push: pushNow,
+      configure({id, token, file}) {
+        if (id)   { SYNC.id = id;   localStorage.setItem(LS.id, id); }
+        if (token){ SYNC.tok = token;localStorage.setItem(LS.tok, token); }
+        if (file) { SYNC.file = file;localStorage.setItem(LS.file, file); }
+      }
+    };
+
+    setStatus('Sync otomatis aktif');
+  }
+
+  // mulai!
+  document.addEventListener('DOMContentLoaded', startAutoSync);
+})();
+</script>
+
 </body>
 </html>
