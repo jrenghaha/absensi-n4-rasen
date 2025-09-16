@@ -1,7 +1,4 @@
-# Write index.html again using a placeholder and replace, to avoid f-string brace issues.
-doc_url = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt"
-
-html = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
@@ -81,7 +78,7 @@ html = r"""<!DOCTYPE html>
       <div class="grid">
         <div>
           <label>Link Google Docs (publish-to-web)</label>
-          <input id="docUrl" type="url" value="DOC_URL_PLACEHOLDER" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
+          <input id="docUrl" type="url" value="https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
           <div class="hint">
             Dokumen berisi 2 baris: <b>Baris-1 = GIST_ID</b>, <b>Baris-2 = TOKEN</b>. URL otomatis pakai <code>?output=txt</code>.
           </div>
@@ -344,10 +341,3 @@ html = r"""<!DOCTYPE html>
   </script>
 </body>
 </html>
-"""
-html = html.replace("DOC_URL_PLACEHOLDER", doc_url)
-with open('/mnt/data/index.html', 'w', encoding='utf-8') as f:
-    f.write(html)
-with open('/mnt/data/.nojekyll', 'w', encoding='utf-8') as f:
-    f.write('')
-print("Saved index.html and .nojekyll")
