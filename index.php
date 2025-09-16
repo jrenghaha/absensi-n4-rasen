@@ -1,0 +1,360 @@
+# Write a self-contained index.php per user's request.
+php_code = """<?php
+// Single-file index.php — no secrets embedded
+// - Password gate (Enter to submit)
+// - Auto-fetch Gist ID & Token from Google Docs publish URL
+// - Load/Save JSON to GitHub Gist
+//
+// NOTE: This requires a PHP-capable host (GitHub Pages does NOT run PHP).
+// You can override the Google Docs URL via query param: ?doc=<url>
+//
+$default_docs_url = 'https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt';
+$docs_url = isset($_GET['doc']) ? $_GET['doc'] : $default_docs_url;
+function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+?><!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Absensi — Sync via Gist</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://docs.google.com https://docs.gstatic.com https://*.googleusercontent.com; frame-ancestors 'none'; base-uri 'none'">
+  <style>
+    :root {
+      --bg: #0b0f14; --card:#121821; --muted:#1a2330; --text:#e8eef6; --sub:#a9b7c6; --acc:#4da3ff; --danger:#ff5470; --ok:#2ecc71;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    html,body { height:100%; background:var(--bg); color:var(--text); margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .card { background: var(--card); border: 1px solid #223146; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.35);}
+    h1 { margin: 0 0 10px; font-size: 22px; letter-spacing: .3px;}
+    .muted { color: var(--sub); font-size: 13px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items: center; }
+    .row > * { flex: 1 1 auto; }
+    label { font-size: 12px; color: var(--sub); display:block; margin-bottom: 6px;}
+    input[type="text"], input[type="password"], input[type="url"], textarea, select {
+      width:100%; box-sizing:border-box; background: var(--muted); color: var(--text); border:1px solid #2a3b52;
+      border-radius:10px; padding:10px 12px; font-size:14px; outline:none; transition: border .15s;
+    }
+    textarea { min-height: 260px; font-family: var(--mono); line-height: 1.4; }
+    input:focus, textarea:focus { border-color: var(--acc); }
+    .btnbar { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;}
+    button, .btn {
+      background: #223146; color: var(--text); border: 1px solid #2a3b52; border-radius: 10px; padding: 10px 14px; font-weight: 600;
+      cursor: pointer; transition: background .15s, transform .02s;
+    }
+    button.primary { background: var(--acc); color:#031323; border-color: #1c6ed1; }
+    button.ok { background: var(--ok); color:#062311; border-color:#1e8b54; }
+    button.danger { background: var(--danger); color:#2b050b; border-color:#b21c32; }
+    button:active { transform: translateY(1px); }
+    .tag { display:inline-block; padding:2px 8px; border-radius: 999px; font-size: 12px; border:1px solid #2a3b52; background:#182131; color:var(--sub)}
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px;}
+    @media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }
+    .hint { font-size:12px; color: var(--sub); margin-top:6px; }
+    .hr { height:1px; background:#223146; margin:16px 0; border:0;}
+    .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+    .right { margin-left:auto; }
+    .link { color: var(--acc); text-decoration:none; }
+    .link:hover { text-decoration:underline; }
+    .toast { position: fixed; right: 16px; bottom: 16px; background: #0d1724; color: var(--text); border:1px solid #2a3b52; padding: 10px 14px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); display:none;}
+    .kbd { font-family: var(--mono); background:#0d1724; padding:1px 6px; border:1px solid #2a3b52; border-radius:6px; font-size:12px; }
+    .warn { color:#ffbd59; }
+    /* modal */
+    .modal-mask { position: fixed; inset:0; background: rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; }
+    .modal { background:#101826; border:1px solid #2a3b52; border-radius:12px; width:min(480px, 92vw); padding:16px; box-shadow: 0 16px 60px rgba(0,0,0,.5); }
+    .modal h2 { margin:0 0 8px; font-size:18px;}
+    .modal small { color:var(--sub); }
+  </style>
+</head>
+<body>
+  <!-- Password Gate -->
+  <div id="gate" class="modal-mask">
+    <div class="modal">
+      <h2>Kunci Akses</h2>
+      <small>Masukkan password untuk memuat kredensial dari Google Docs.</small>
+      <div class="row" style="margin-top:10px;">
+        <input id="gatePw" type="password" placeholder="Password" autocomplete="off"/>
+        <button id="gateBtn" class="primary" type="button">Buka</button>
+      </div>
+      <div id="gateMsg" class="hint" style="margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <div class="wrap" style="display:none" id="app">
+    <div class="card">
+      <h1>Absensi — Sync via Gist</h1>
+      <div class="muted">
+        Kredensial tidak ditanam di file. Diambil <i>runtime</i> dari Google Docs publish-to-web.
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="grid">
+        <div>
+          <label>Link Google Docs (publish-to-web)</label>
+          <input id="docUrl" type="url" value="<?php echo h($docs_url); ?>" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
+          <div class="hint">
+            Dokumen berisi 2 baris: <b>Baris-1 = GIST_ID</b>, <b>Baris-2 = TOKEN</b>. URL otomatis pakai <code>?output=txt</code>.
+          </div>
+        </div>
+        <div>
+          <div class="row">
+            <div style="flex:2 1 auto;">
+              <label>Filename di Gist</label>
+              <input id="filename" type="text" value="absensi-settings.json" autocomplete="off"/>
+              <div class="hint">Case-sensitive. Pilih cepat di bawah, atau ketik manual.</div>
+            </div>
+            <div style="flex:1 1 220px;">
+              <label>Preset Filename</label>
+              <select id="preset">
+                <option value="">— pilih —</option>
+                <option value="absensi-settings.json">absensi-settings.json</option>
+                <option value="absensi-n4-rasen.json">absensi-n4-rasen.json</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="btnbar">
+        <button id="btnFetchCreds" class="primary" type="button">1) Ambil Gist ID & Token dari Docs</button>
+        <button id="btnTestCreds" type="button">Tes Kredensial</button>
+        <span class="inline right muted">
+          <label class="inline" style="gap:6px;">
+            <input id="remember" type="checkbox"/> Remember locally
+          </label>
+          <button id="btnClear" class="danger" type="button">Hapus yang tersimpan</button>
+          <span> | Status: <span id="status" class="warn">Idle</span></span>
+        </span>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="grid">
+        <div>
+          <label>Gist ID</label>
+          <input id="gistId" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+        </div>
+        <div>
+          <label>GitHub Token (scope: gist)</label>
+          <input id="token" type="password" placeholder="ghp_xxx..." autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="btnbar">
+        <button id="btnLoad" type="button">2) Muat JSON dari Gist</button>
+        <button id="btnSave" class="ok" type="button">3) Simpan JSON ke Gist</button>
+        <button id="btnDownload" type="button">Unduh JSON</button>
+        <label class="btn" for="fileInput">Muat JSON (file)…</label>
+        <input id="fileInput" type="file" accept="application/json" style="display:none" />
+        <span class="right"><a id="openGist" class="link" href="#" target="_blank" rel="noopener">Buka Gist</a></span>
+      </div>
+
+      <div class="hr"></div>
+
+      <label>Data JSON</label>
+      <textarea id="jsonArea" placeholder="{ ... }"></textarea>
+
+      <div class="hint">
+        • Setelah <b>Load</b>, kamu bisa copy JSON ke app atau langsung <b>Save</b> untuk update storage di Gist.  
+        • Shortcut: <span class="kbd">Ctrl/⌘+S</span> untuk Simpan.
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // === Konstanta/Config ===
+    const ACCESS_PW = "inipassword12";
+
+    // === Util ===
+    const $ = sel => document.querySelector(sel);
+    const showToast = (msg) => { const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
+      clearTimeout(window.__toastT); window.__toastT = setTimeout(()=> t.style.display='none', 2600); };
+    const setStatus = (msg, ok=false) => { const s = $('#status'); s.textContent = msg; s.style.color = ok ? '#8ee39c' : '#ffbd59'; };
+
+    // === Gate ===
+    function openApp() {
+      $('#gate').style.display='none';
+      $('#app').style.display='block';
+      // auto-fetch after open for convenience
+      doFetchCreds().catch(()=>{});
+    }
+    function tryOpenGate() {
+      const pw = $('#gatePw').value;
+      if (pw === ACCESS_PW) { openApp(); }
+      else { $('#gateMsg').textContent = 'Password salah.'; }
+    }
+    // Enter-to-login + click
+    document.addEventListener('DOMContentLoaded', () => {
+      $('#gateBtn').addEventListener('click', tryOpenGate);
+      $('#gatePw').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); tryOpenGate(); } });
+    });
+
+    // === Google Docs -> creds ===
+    async function fetchCredsFromDoc(url) {
+      if (!url) throw new Error("URL Google Docs kosong");
+      if (!/\\?output=txt($|&)/.test(url)) url += (url.includes('?') ? '&' : '?') + 'output=txt';
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) throw new Error("Gagal mengambil dokumen (" + res.status + ")");
+      const text = await res.text();
+      const lines = text.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);
+      if (lines.length >= 2 && /^[a-f0-9]{32}$/i.test(lines[0]) && /^gh[pous]_[A-Za-z0-9_]{20,}/.test(lines[1])) {
+        return { gistId: lines[0], token: lines[1] };
+      }
+      // fallback HTML scrape (kalau publish bukan txt)
+      const idMatch = text.match(/\\b[a-f0-9]{32}\\b/i);
+      const tkMatch = text.match(/\\bgh[pous]_[A-Za-z0-9_]{20,}\\b/);
+      if (idMatch && tkMatch) return { gistId: idMatch[0], token: tkMatch[0] };
+      throw new Error("Tidak menemukan Gist ID / Token di dokumen.");
+    }
+
+    // === Gist API ===
+    async function getGist({ gistId, token }) {
+      const url = `https://api.github.com/gists/${gistId}`;
+      const headers = { "Accept": "application/vnd.github+json" };
+      if (token) headers["Authorization"] = "Bearer " + token;
+      const res = await fetch(url, { headers });
+      if (res.status === 404) throw new Error("404 — Gist tidak ditemukan atau tidak bisa diakses.");
+      if (!res.ok) throw new Error(`Gagal GET Gist (${res.status})`);
+      return await res.json();
+    }
+
+    async function loadJsonFromGist({ gistId, filename, token }) {
+      const data = await getGist({ gistId, token });
+      const f = data.files && data.files[filename];
+      if (!f) throw new Error(`File "${filename}" tidak ada di Gist`);
+      if (f.truncated && f.raw_url) {
+        const raw = await fetch(f.raw_url);
+        if (!raw.ok) throw new Error("Gagal memuat raw_url");
+        return await raw.text();
+      }
+      return f.content || "";
+    }
+
+    async function saveJsonToGist({ gistId, filename, token, content }) {
+      if (!token) throw new Error("Token wajib untuk menyimpan.");
+      const url = `https://api.github.com/gists/${gistId}`;
+      const body = { files: {} }; body.files[filename] = { content };
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Accept": "application/vnd.github+json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(()=> "");
+        throw new Error(`Gagal PATCH Gist (${res.status}) ${t}`);
+      }
+      return await res.json();
+    }
+
+    // === UI handlers ===
+    async function doFetchCreds() {
+      const url = $('#docUrl').value.trim();
+      try {
+        const { gistId, token } = await fetchCredsFromDoc(url);
+        $('#gistId').value = gistId;
+        $('#token').value  = token;
+        $('#openGist').href = `https://gist.github.com/${gistId}`;
+        setStatus("Kredensial diambil dari Docs", true);
+        showToast("Berhasil ambil Gist ID & Token dari Docs");
+        if ($('#remember').checked) {
+          localStorage.setItem('sync.gistId', gistId);
+          localStorage.setItem('sync.token', token);
+          localStorage.setItem('sync.filename', $('#filename').value.trim());
+          localStorage.setItem('sync.docUrl', url);
+        }
+      } catch (e) {
+        setStatus("Gagal ambil dari Docs", false);
+        showToast(e.message);
+      }
+    }
+
+    async function doTestCreds() {
+      const gistId = $('#gistId').value.trim();
+      const token  = $('#token').value.trim();
+      try { await getGist({ gistId, token }); setStatus("Kredensial valid ✔", true); showToast("Tes berhasil"); }
+      catch (e) { setStatus("Kredensial bermasalah ✖", false); showToast(e.message); }
+    }
+
+    async function doLoad() {
+      const gistId  = $('#gistId').value.trim();
+      const token   = $('#token').value.trim();
+      const fname   = $('#filename').value.trim();
+      try {
+        const txt = await loadJsonFromGist({ gistId, filename: fname, token });
+        $('#jsonArea').value = txt;
+        setStatus("JSON termuat dari Gist", true);
+        showToast("Muat JSON OK");
+      } catch (e) {
+        showToast(e.message);
+        setStatus("Gagal memuat JSON", false);
+      }
+    }
+
+    async function doSave() {
+      const gistId  = $('#gistId').value.trim();
+      const token   = $('#token').value.trim();
+      const fname   = $('#filename').value.trim();
+      const txt     = $('#jsonArea').value;
+      if (txt.trim()) { try { JSON.parse(txt); } catch { return showToast("JSON tidak valid — cek koma/kurung"); } }
+      try {
+        await saveJsonToGist({ gistId, filename: fname, token, content: txt });
+        setStatus("Tersimpan ke Gist", true);
+        showToast("Simpan JSON OK");
+      } catch (e) {
+        showToast(e.message);
+        setStatus("Gagal menyimpan JSON", false);
+      }
+    }
+
+    function doDownload() {
+      const blob = new Blob([$('#jsonArea').value], { type: "application/json" });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = $('#filename').value.trim() || 'absensi-settings.json';
+      a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function handleFile(ev) {
+      const f = ev.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { $('#jsonArea').value = reader.result; showToast("File dimuat ke editor"); };
+      reader.readAsText(f); ev.target.value = "";
+    }
+
+    function clearStored() {
+      localStorage.removeItem('sync.gistId');
+      localStorage.removeItem('sync.token');
+      localStorage.removeItem('sync.filename');
+      localStorage.removeItem('sync.docUrl');
+      showToast("Local storage dibersihkan"); setStatus("Cleared", false);
+    }
+
+    // Preset dropdown
+    document.addEventListener('DOMContentLoaded', () => {
+      $('#preset').addEventListener('change', (e)=>{ if(e.target.value) $('#filename').value = e.target.value; });
+
+      // Buttons
+      $('#btnFetchCreds').addEventListener('click', doFetchCreds);
+      $('#btnTestCreds').addEventListener('click', doTestCreds);
+      $('#btnLoad').addEventListener('click', doLoad);
+      $('#btnSave').addEventListener('click', doSave);
+      $('#btnDownload').addEventListener('click', doDownload);
+      $('#fileInput').addEventListener('change', handleFile);
+      $('#btnClear').addEventListener('click', clearStored);
+
+      // Ctrl/Cmd+S
+      window.addEventListener('keydown', (e)=>{ if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); } });
+    });
+  </script>
+</body>
+</html>
+"""
+with open('/mnt/data/index.php', 'w', encoding='utf-8') as f:
+    f.write(php_code)
+print("Saved /mnt/data/index.php")
