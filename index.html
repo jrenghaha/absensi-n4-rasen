@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sync — Kunci Akses</title>
+  <title>Sync Gate</title>
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self' 'unsafe-inline';
@@ -12,98 +12,41 @@
                  img-src 'self' data:;
                  frame-ancestors 'none'; base-uri 'none'">
   <style>
-    :root {
-      --bg:#0b1118; --panel:#121a24; --text:#e8eef6; --muted:#9fb0c2; --border:#213144;
-      --ok:#2ecc71; --err:#ff5470; --warn:#ffbd59; --accent:#409cff;
-    }
-    * { box-sizing:border-box; }
-    html,body { height:100%; margin:0; background:var(--bg); color:var(--text);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; }
-    .center { min-height:100%; display:grid; place-items:center; padding:24px; }
-    .card { width:min(520px, 96vw); background:var(--panel); border:1px solid var(--border);
-      border-radius:16px; padding:22px 20px 18px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
-    h2 { margin:0 0 14px; font-size:20px; }
-    .row { display:flex; gap:10px; align-items:center; }
-    .status { font-size:14px; margin-bottom:12px; }
-    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; background:#556; }
-    .ok  { background:var(--ok)  !important; }
-    .err { background:var(--err) !important; }
-    .warn{ background:var(--warn)!important; }
-    input[type=password] { flex:1 1 auto; padding:12px 12px; border-radius:12px; border:1px solid var(--border);
-      background:#172334; color:var(--text); outline:none; font-size:15px; }
-    button { padding:12px 16px; border-radius:12px; border:1px solid #1a5bb8; background:var(--accent);
-      color:#061a2e; font-weight:700; cursor:pointer; }
-    small { color:var(--muted); display:block; margin-top:8px; line-height:1.35; }
-    .help { margin-top:14px; font-size:12px; color:var(--muted); }
-    .ghost { opacity:.7; pointer-events:none; }
+    :root{--bg:#0c1118;--panel:#121a24;--text:#e8eef6;--muted:#9fb0c2;--border:#213144;--accent:#4593ff;}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .center{min-height:100%;display:grid;place-items:center;padding:24px}
+    .card{width:min(520px,95vw);background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+    h1{margin:0 0 8px;font-size:20px}
+    .row{display:flex;gap:10px;align-items:center}
+    input[type=password]{flex:1;padding:12px;border-radius:12px;border:1px solid var(--border);background:#172334;color:var(--text)}
+    button{padding:12px 16px;border-radius:12px;border:1px solid #1a5bb8;background:var(--accent);color:#061a2e;font-weight:700;cursor:pointer}
+    small{display:block;color:var(--muted);margin-top:8px}
+    .status{margin-top:10px;color:var(--muted)}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#556;margin-right:8px;vertical-align:-1px}
+    .ok{background:#2ecc71} .err{background:#ff5470} .warn{background:#ffbd59}
   </style>
 </head>
 <body>
   <div class="center">
     <div class="card">
-      <div class="row" style="justify-content:space-between; margin-bottom:6px;">
-        <h2>Sync</h2>
-        <div id="statusWrap" class="status"><span id="dot" class="dot"></span><span id="statusText">Siap</span></div>
-      </div>
+      <h1>Kunci Akses</h1>
       <div class="row">
-        <input id="pw" type="password" placeholder="••••••••••••••" autocomplete="current-password">
-        <button id="openBtn">Buka</button>
+        <input id="pw" type="password" placeholder="•••••••••••••" autocomplete="current-password">
+        <button id="go">Buka</button>
       </div>
-      <small>Masukkan password. Jika benar, halaman ini akan mengambil <b>Gist ID</b> &amp; <b>Token</b> dari Google Docs dan menyimpannya ke <code>localStorage</code>, lalu membuka <b>app.html</b>.</small>
-      <div class="help">Doc URL dipakai: <code id="docUrlView">https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt</code></div>
+      <small>Masukkan password. Jika benar, langsung buka <b>app.html</b>.</small>
+      <div class="status"><span id="dot" class="dot"></span><span id="st">Siap</span></div>
     </div>
   </div>
-
   <script>
-    const DOC_URL = 'https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt';
     const PASSWORD = 'inipassword12';
-    const FILENAME = 'absensi-n4-rasen.json';
-    const LS = { id:'sync.gistId', tok:'sync.token', file:'sync.filename', doc:'sync.docUrl' };
-    const tokenRe = /(?:gh[pous]_[A-Za-z0-9_\-]{20,}|github_pat_[A-Za-z0-9_\-]{20,})/;
-
     const $ = s => document.querySelector(s);
-    const dot = $('#dot'), st = $('#statusText'), btn = $('#openBtn'), pw = $('#pw');
-
-    function setStatus(text, kind) {
-      st.textContent = text;
-      dot.classList.remove('ok','err','warn');
-      if (kind) dot.classList.add(kind);
-    }
-    function lockUI(lock) { btn.classList.toggle('ghost', lock); btn.disabled = lock; pw.disabled = lock; }
-
-    async function openFlow() {
-      try {
-        if (pw.value !== PASSWORD) { setStatus('Password salah', 'err'); pw.focus(); pw.select(); return; }
-        lockUI(true); setStatus('Mengambil kredensial dari Docs…', 'warn');
-
-        const res = await fetch(DOC_URL, { mode:'cors' });
-        if (!res.ok) throw new Error('Gagal ambil dokumen ('+res.status+')');
-        const text = await res.text();
-
-        const idMatch = text.match(/\b[a-f0-9]{32}\b/i);
-        const tkMatch = text.match(tokenRe);
-        if (!idMatch || !tkMatch) throw new Error('Tidak menemukan Gist ID / Token di dokumen');
-
-        const gistId = idMatch[0], token = tkMatch[0];
-        // simpan ke localStorage untuk dipakai app.html
-        localStorage.setItem(LS.id, gistId);
-        localStorage.setItem(LS.tok, token);
-        localStorage.setItem(LS.file, FILENAME);
-        localStorage.setItem(LS.doc, DOC_URL);
-
-        setStatus('Kredensial tersimpan — membuka app…', 'ok');
-        // Redirect ke app.html
-        location.href = 'app.html';
-      } catch (e) {
-        setStatus('Gagal: '+ e.message, 'err'); lockUI(false);
-      }
-    }
-
-    // Enter untuk submit
-    pw.addEventListener('keydown', e => { if (e.key === 'Enter') openFlow(); });
-    btn.addEventListener('click', openFlow);
-    // Autofocus
-    setTimeout(() => pw.focus(), 100);
+    const st = $('#st'), dot = $('#dot'), pw = $('#pw'), go = $('#go');
+    function setStatus(t,k){st.textContent=t;dot.className='dot ' + (k||'');}
+    function openNow(){ if(pw.value!==PASSWORD){setStatus('Password salah','err');pw.focus();pw.select();return;} setStatus('Membuka app…','ok'); location.href='app.html'; }
+    pw.addEventListener('keydown',e=>{ if(e.key==='Enter') openNow(); });
+    go.addEventListener('click', openNow);
+    setTimeout(()=>pw.focus(),100);
   </script>
 </body>
 </html>
