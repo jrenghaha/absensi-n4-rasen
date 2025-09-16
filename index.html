@@ -1,10 +1,15 @@
-<!DOCTYPE html>
+# Produce an updated HTML (index_gate_fixed2.html) that:
+# - Uses the provided Google Docs URL
+# - Fixes CSP to allow inline scripts
+# - Accepts both classic tokens (ghp_/gho_/ghs_/ghu_) and fine-grained tokens (github_pat_...)
+doc_url = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt"
+
+html = r"""<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Absensi — Sync via Gist</title>
-  <!-- FIX: allow inline scripts; earlier CSP blocked JS so button did nothing -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self' 'unsafe-inline';
@@ -45,7 +50,6 @@
     @media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }
     .hint { font-size:12px; color: var(--sub); margin-top:6px; }
     .hr { height:1px; background:#223146; margin:16px 0; border:0;}
-    /* modal */
     .mask { position: fixed; inset:0; background: rgba(0,0,0,.68); display:flex; align-items:center; justify-content:center; }
     .modal { background:#0f1928; border:1px solid #2a3b52; border-radius:16px; width:min(520px, 90vw); padding:20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
     .modal h2 { margin:0 0 10px; font-size:20px;}
@@ -53,7 +57,6 @@
   </style>
 </head>
 <body>
-  <!-- Password Gate -->
   <div id="gate" class="mask">
     <div class="modal">
       <h2>Kunci Akses</h2>
@@ -132,7 +135,7 @@
 
   <script>
     const ACCESS_PW = "inipassword12";
-    const PRESET_DOC_URL = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt";
+    const PRESET_DOC_URL = "DOCURL";
 
     const $ = s => document.querySelector(s);
     const setStatus = (t, ok=false) => { const el = $('#status'); el.textContent = t; el.style.color = ok ? '#8ee39c' : '#ffbd59'; };
@@ -159,12 +162,16 @@
       if (!res.ok) throw new Error('Gagal mengambil dokumen (' + res.status + ')');
       const text = await res.text();
       const lines = text.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);
-      if (lines.length >= 2 && /^[a-f0-9]{32}$/i.test(lines[0]) && /^gh[pous]_[A-Za-z0-9_]{20,}/.test(lines[1])) {
-        return { gistId: lines[0], token: lines[1] };
+
+      // Accept two-line layout OR search anywhere (supports ghp_/gho_/ghs_/ghu_/github_pat_)
+      const tokenRe = /(?:gh[pous]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})/;
+      if (lines.length >= 2 && /^[a-f0-9]{32}$/i.test(lines[0]) && tokenRe.test(lines[1])) {
+        return { gistId: lines[0].match(/[a-f0-9]{32}/i)[0], token: lines[1].match(tokenRe)[0] };
       }
-      const idMatch = text.match(/\\b[a-f0-9]{32}\\b/i);
-      const tkMatch = text.match(/\\bgh[pous]_[A-Za-z0-9_]{20,}\\b/);
+      const idMatch = text.match(/\b[a-f0-9]{32}\b/i);
+      const tkMatch = text.match(tokenRe);
       if (idMatch && tkMatch) return { gistId: idMatch[0], token: tkMatch[0] };
+
       throw new Error('Tidak menemukan Gist ID / Token di dokumen.');
     }
 
@@ -268,3 +275,11 @@
   </script>
 </body>
 </html>
+"""
+html = html.replace("DOCURL", doc_url)
+with open('/mnt/data/index_gate_fixed2.html', 'w', encoding='utf-8') as f:
+    f.write(html)
+
+with open('/mnt/data/.nojekyll', 'w', encoding='utf-8') as f:
+    f.write('')
+"index_gate_fixed2.html written"
