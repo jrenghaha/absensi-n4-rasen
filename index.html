@@ -7,13 +7,14 @@
   <style>
     html,body{height:100%;margin:0}
     #appframe{position:fixed;inset:0;border:0;width:100%;height:100%}
+    /* === Sync badge === */
     #syncBadge{position:fixed;right:14px;bottom:14px;z-index:999999;background:#ffffffee;border:1px solid #d1d5db;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;color:#111827;overflow:hidden;min-width:42px}
     #syncHead{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
     #syncDot{width:10px;height:10px;border-radius:50%;background:#9ca3af;border:1px solid #9ca3af}
     #syncTitle{font-weight:600}
     #syncToggle{margin-left:auto;border:1px solid #d1d5db;border-radius:8px;padding:2px 8px;font-weight:700;background:#fff}
-    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:8px 10px;max-width:480px}
-    #syncBody .row{margin:6px 0;color:#374151}
+    #syncBody{display:none;border-top:1px solid #e5e7eb;padding:10px;max-width:520px}
+    #syncBody .row{margin:8px 0;color:#374151}
     #syncBody .small{font-size:12px;color:#6b7280;word-break:break-all}
     .ok{background:#10b981!important;border-color:#10b981!important}
     .warn{background:#f59e0b!important;border-color:#f59e0b!important}
@@ -23,10 +24,12 @@
     .btn.ghost{border-color:#d1d5db}
     #loginBox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     #pwInput{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit;flex:1;min-width:220px}
+    input.cred{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font:inherit;min-width:280px}
+    label.smalllbl{font-size:12px;color:#6b7280;margin-top:4px}
   </style>
 </head>
 <body>
-  <!-- App utama -->
+  <!-- Aplikasi utama -->
   <iframe id="appframe" src="app.html" allow="clipboard-read; clipboard-write"></iframe>
 
   <!-- Badge Sync -->
@@ -45,6 +48,16 @@
         <button id="pwOpen" class="btn primary" type="button">Buka</button>
       </div>
 
+      <!-- Kredensial yang bisa diedit manual setelah password benar -->
+      <div class="row" id="credBox" style="display:none">
+        <div style="display:flex;gap:6px;flex-direction:column">
+          <label class="smalllbl">Gist ID</label>
+          <input id="gistIdInput" class="cred" type="text" placeholder="32-hex gist id">
+          <label class="smalllbl">Token (scope: gist)</label>
+          <input id="tokenInput" class="cred" type="text" placeholder="ghp_… / github_pat_…">
+        </div>
+      </div>
+
       <div class="row" id="btnRow" style="display:none;gap:8px;flex-wrap:wrap">
         <button id="syncBtnNow" class="btn primary" type="button">Simpan ke Gist Sekarang</button>
         <button id="syncBtnLoad" class="btn" type="button">Muat Ulang dari Gist</button>
@@ -53,8 +66,9 @@
   </div>
 
 <script>
-/* ====== KONFIG ====== */
+/* ===================== KONFIG ===================== */
 const PASSWORD_CORRECT = "inipassword12"; // password master
+// Dokumen Google: baris-1 = Gist ID, baris-2 = Token
 const DOC_URL = "https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub";
 
 /* kandidat nama file data di Gist (urut prioritas) */
@@ -63,39 +77,42 @@ const FILE_CANDIDATES = [
   "absensi-n4-rasen.json",
   "absensi.json"
 ];
-let CURRENT_FILE = null; // akan diisi saat load agar save menimpa file yang sama
+let CURRENT_FILE = null; // nama file yang dipakai saat load => dipakai juga saat save
 
-/* ====== UI ====== */
+/* ===================== UI HELPERS ===================== */
 const $ = s=>document.querySelector(s);
 const appFrame = $('#appframe');
+
 const head=$('#syncHead'), body=$('#syncBody'), dot=$('#syncDot'), togg=$('#syncToggle');
 const statusEl=$('#syncStatus'), metaEl=$('#syncMeta');
 const loginBox=$('#loginBox'), pwInput=$('#pwInput'), pwOpen=$('#pwOpen');
+const credBox=$('#credBox'), gistIdInput=$('#gistIdInput'), tokenInput=$('#tokenInput');
 const btnRow=$('#btnRow'), btnNow=$('#syncBtnNow'), btnLoad=$('#syncBtnLoad');
 
 let expanded=false; function setExpanded(v){ expanded=v; body.style.display=v?'block':'none'; togg.textContent=v?'▾':'▴'; }
 setExpanded(false);
 head.addEventListener('click',()=>setExpanded(!expanded));
+
 function setDot(c){ dot.classList.remove('ok','warn','err'); if(c) dot.classList.add(c); }
-function setStatus(t,cls){ statusEl.textContent=t; if(cls) statusEl.className=cls; }
+function setStatus(t,cls){ statusEl.textContent=t; statusEl.className=cls||''; }
 function setMeta(t){ metaEl.textContent=t; }
 
-/* ====== KREDENSIAL (RAM only; tidak disimpan) ====== */
-let sessionCreds = { id:'', token:'' };
-function getCreds(){ return sessionCreds; }
-function saveCreds(id, tok){ sessionCreds = { id:id.trim(), token:tok.trim() }; }
-function clearCreds(){ sessionCreds = { id:'', token:'' }; }
+/* ===================== KREDENSIAL ===================== */
+function getCreds(){ return { id:(gistIdInput.value||'').trim(), token:(tokenInput.value||'').trim() }; }
+function saveCreds(id, tok){ gistIdInput.value=(id||'').trim(); tokenInput.value=(tok||'').trim(); }
+function clearCreds(){ gistIdInput.value=''; tokenInput.value=''; }
 
-/* ====== akses app.html ====== */
+/* ===================== AKSES app.html ===================== */
 function app(){
   const w = appFrame.contentWindow;
   if(!w) throw new Error('Iframe belum siap');
-  if(typeof w.collectAllData!=='function' || typeof w.applyAllData!=='function')
+  if(typeof w.collectAllData!=='function' || typeof w.applyAllData!=='function'){
     throw new Error('Fungsi collectAllData/applyAllData belum ada');
+  }
   return w;
 }
 
-/* ====== GitHub API (selalu pakai Authorization) ====== */
+/* ===================== GitHub API ===================== */
 async function gh(path, opts = {}) {
   const { token } = getCreds(); if (!token) throw new Error('TOKEN kosong');
   const headers = Object.assign({
@@ -110,6 +127,9 @@ async function gh(path, opts = {}) {
       const t = await res.text();
       if (t) { try { const j = JSON.parse(t); msg += ': ' + (j.message || t); } catch { msg += ': ' + t; } }
     } catch {}
+    if (res.status === 404 && path.startsWith('/gists/')) {
+      msg += ' — Gist tidak ditemukan. Jika gist SECRET, pastikan ID benar & token milik pemilik gist.';
+    }
     throw new Error('GitHub API ' + msg);
   }
   return res.json();
@@ -131,12 +151,12 @@ async function gistLoad() {
   const fileName = pickDataFile(out.files||{});
   if (!fileName) throw new Error('Tidak ada file .json di Gist ini.');
   const file = out.files[fileName];
-  CURRENT_FILE = fileName; // simpan agar save menimpa file yang sama
+  CURRENT_FILE = fileName;
 
   if (file.content && typeof file.content === 'string') {
     return JSON.parse(file.content);
   }
-  // fallback: raw_url (works untuk public/secret gist)
+  // fallback: raw_url
   const res = await fetch(file.raw_url, { mode:'cors' });
   if (!res.ok) throw new Error('Gagal fetch raw_url: '+res.status+' '+res.statusText);
   return await res.json();
@@ -147,10 +167,10 @@ async function gistSave(data){
   const name = CURRENT_FILE || FILE_CANDIDATES[0];
   const body = { files: { [name]: { content: JSON.stringify(data, null, 2) } } };
   await gh('/gists/' + id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  CURRENT_FILE = name; // pastikan konsisten
+  CURRENT_FILE = name;
 }
 
-/* ====== auto save & load ====== */
+/* ===================== AUTO SAVE ===================== */
 let lastJSON=''; 
 let saveTimer=null; 
 let isLoading=false;
@@ -172,23 +192,24 @@ function scheduleSave(){
   },1200);
 }
 
+/* ===================== VERIFIKASI & LOAD ===================== */
 async function verifyAndLoad(){
   const {id,token}=getCreds();
-  if(!id || !token){ setStatus('Perlu password','err'); setDot('err'); return; }
+  if(!id || !token){ setStatus('Perlu kredensial','err'); setDot('err'); return; }
   try{
     isLoading = true;
-    setStatus('Memverifikasi kredensial…','warn'); setDot('warn');
-    // verifikasi token & akses gist → error jelas
+    setStatus('Memverifikasi…','warn'); setDot('warn');
     const me = await gh('/user');
     const g  = await gh('/gists/'+id);
-    setMeta(`Token @${me.login}. Gist: ${g.id} (${g.public?'public':'secret'})`);
-    setStatus('Memuat dari Gist…','warn');
+    setMeta(`Token @${me.login}. Gist: ${g.id} (${g.public?'public':'secret'}) — files: ${Object.keys(g.files||{}).join(', ')||'-'}`);
 
-    const data=await gistLoad(); app().applyAllData(data);
+    setStatus('Memuat dari Gist…','warn');
+    const data=await gistLoad();
+    app().applyAllData(data);
     lastJSON=jsonOf(app().collectAllData());
     setStatus('Dimuat dari Gist','ok'); setDot('ok');
     setMeta('Terakhir muat: '+new Date().toLocaleString('id-ID'));
-    btnRow.style.display='block'; loginBox.style.display='none';
+    btnRow.style.display='block'; loginBox.style.display='none'; credBox.style.display='block';
   }catch(e){
     setStatus('Gagal muat','err'); setDot('err'); setMeta(e.message||String(e));
   } finally {
@@ -196,10 +217,7 @@ async function verifyAndLoad(){
   }
 }
 
-/* ====== util kecil ====== */
-function maskTail(s, n=4){ if(!s) return ''; return s.length<=n ? '*'.repeat(s.length) : '*'.repeat(Math.max(0,s.length-n)) + s.slice(-n); }
-
-/* ====== PARSER 2 BARIS (ID di atas, token di bawah) + fallback ====== */
+/* ===================== PARSER Google Docs ===================== */
 function extractCredsTwoLines(raw) {
   let text = raw || '';
   if (/^\s*</.test(text)) { const tmp=document.createElement('div'); tmp.innerHTML=text; text=tmp.textContent||''; }
@@ -234,7 +252,7 @@ function extractCredsTwoLines(raw) {
   return { gistId, token };
 }
 
-/* ====== UNLOCK (baca Google Docs 2 baris) ====== */
+/* ===================== UNLOCK: ambil kredensial dari Google Doc ===================== */
 async function unlockViaGoogleDoc(){
   const pass = (pwInput.value||'').trim();
   if (pass !== PASSWORD_CORRECT){ setStatus('Password salah','err'); setDot('err'); return; }
@@ -249,21 +267,22 @@ async function unlockViaGoogleDoc(){
     if (!/^ghp_[A-Za-z0-9]{36}$/.test(token) && !/^github_pat_[A-Za-z0-9_]{20,}$/.test(token))
       throw new Error('Token tidak valid');
 
-    setMeta(`Parsed: gistId=${maskTail(gistId)} token=${token.startsWith('ghp_')?'ghp_'+maskTail(token.slice(4)):'github_pat_'+maskTail(token.slice(11))}`);
-    saveCreds(gistId, token);
+    saveCreds(gistId, token);                 // prefill ke input
+    credBox.style.display = 'block';          // tampilkan agar bisa diubah manual
+    setMeta(`Parsed: gistId=${gistId.slice(0,4)}…${gistId.slice(-4)} token=${token.startsWith('ghp_')?'ghp_…'+token.slice(-4):'github_pat_…'+token.slice(-4)}`);
+    setStatus('Kredensial dimuat — klik "Buka" untuk load', 'warn'); setDot('warn');
 
-    setStatus('Kredensial dimuat','ok'); setDot('ok');
+    // langsung coba load
     await verifyAndLoad();
   }catch(e){
     setStatus('Gagal ambil kredensial: ' + (e.message||e),'err'); setDot('err');
   }
 }
 
-/* ====== hooks ====== */
+/* ===================== HOOKS & BOOT ===================== */
 pwOpen.addEventListener('click', unlockViaGoogleDoc);
 pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') unlockViaGoogleDoc(); });
 
-// tombol: Simpan & Muat Ulang
 btnNow.addEventListener('click', ()=>scheduleSave());
 btnLoad.addEventListener('click', async ()=>{
   try{
@@ -292,9 +311,8 @@ function hookChangeWatch(){
   }catch(e){}
 }
 
-/* ====== boot ====== */
 window.addEventListener('load', ()=>{
-  // Tidak auto-load; harus unlock dulu → selalu minta password tiap reload
+  // Tidak auto-load tanpa password; selalu minta password saat buka halaman
   const wait=setInterval(()=>{ try{ app(); clearInterval(wait); hookChangeWatch(); }catch(_){ } },150);
   body.style.display='none';
 });
