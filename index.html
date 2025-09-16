@@ -7,27 +7,28 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src https://api.github.com https://docs.google.com https://docs.gstatic.com https://*.googleusercontent.com; frame-ancestors 'none'; base-uri 'none'">
   <style>
     :root {
-      --bg: #0b0f14; --card:#121821; --muted:#1a2330; --text:#e8eef6; --sub:#a9b7c6; --acc:#4da3ff; --danger:#ff5470; --ok:#2ecc71;
+      --bg: #0c1118; --card:#121a24; --muted:#172232; --text:#e8eef6; --sub:#a9b7c6; --acc:#4da3ff; --danger:#ff5470; --ok:#2ecc71;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
+    * { box-sizing: border-box; }
     html,body { height:100%; background:var(--bg); color:var(--text); margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
-    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
-    .card { background: var(--card); border: 1px solid #223146; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.35);}
-    h1 { margin: 0 0 10px; font-size: 22px; letter-spacing: .3px;}
+    .wrap { max-width: 1100px; margin: 28px auto; padding: 0 16px; }
+    .card { background: var(--card); border: 1px solid #223146; border-radius: 16px; padding: 18px; box-shadow: 0 10px 28px rgba(0,0,0,.32);}
+    h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: .2px; }
     .muted { color: var(--sub); font-size: 13px; }
     .row { display:flex; gap:12px; flex-wrap:wrap; align-items: center; }
-    .row > * { flex: 1 1 auto; }
+    .row > * { flex: 1 1 auto; min-width: 220px; }
     label { font-size: 12px; color: var(--sub); display:block; margin-bottom: 6px;}
     input[type="text"], input[type="password"], input[type="url"], textarea, select {
-      width:100%; box-sizing:border-box; background: var(--muted); color: var(--text); border:1px solid #2a3b52;
-      border-radius:10px; padding:10px 12px; font-size:14px; outline:none; transition: border .15s;
+      width:100%; background: var(--muted); color: var(--text); border:1px solid #2a3b52;
+      border-radius:12px; padding:10px 12px; font-size:14px; outline:none; transition: border .15s;
     }
     textarea { min-height: 260px; font-family: var(--mono); line-height: 1.4; }
     input:focus, textarea:focus { border-color: var(--acc); }
     .btnbar { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;}
     button, .btn {
-      background: #223146; color: var(--text); border: 1px solid #2a3b52; border-radius: 10px; padding: 10px 14px; font-weight: 600;
-      cursor: pointer; transition: background .15s, transform .02s;
+      background: #223146; color: var(--text); border: 1px solid #2a3b52; border-radius: 12px; padding: 10px 14px; font-weight: 600;
+      cursor: pointer; transition: background .15s, transform .02s, opacity .2s;
     }
     button.primary { background: var(--acc); color:#031323; border-color: #1c6ed1; }
     button.ok { background: var(--ok); color:#062311; border-color:#1e8b54; }
@@ -45,43 +46,23 @@
     .toast { position: fixed; right: 16px; bottom: 16px; background: #0d1724; color: var(--text); border:1px solid #2a3b52; padding: 10px 14px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); display:none;}
     .kbd { font-family: var(--mono); background:#0d1724; padding:1px 6px; border:1px solid #2a3b52; border-radius:6px; font-size:12px; }
     .warn { color:#ffbd59; }
-    /* modal */
-    .modal-mask { position: fixed; inset:0; background: rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; }
-    .modal { background:#101826; border:1px solid #2a3b52; border-radius:12px; width:min(480px, 92vw); padding:16px; box-shadow: 0 16px 60px rgba(0,0,0,.5); }
-    .modal h2 { margin:0 0 8px; font-size:18px;}
-    .modal small { color:var(--sub); }
+    .success { color:#8ee39c; }
+    .skeleton { opacity:.55; }
   </style>
 </head>
 <body>
-  <!-- Password Gate -->
-  <div id="gate" class="modal-mask">
-    <div class="modal">
-      <h2>Kunci Akses</h2>
-      <small>Masukkan password untuk memuat kredensial dari Google Docs.</small>
-      <div class="row" style="margin-top:10px;">
-        <input id="gatePw" type="password" placeholder="Password" autocomplete="off"/>
-        <button id="gateBtn" class="primary" type="button">Buka</button>
-      </div>
-      <div id="gateMsg" class="hint" style="margin-top:6px;"></div>
-    </div>
-  </div>
-
-  <div class="wrap" style="display:none" id="app">
+  <div class="wrap">
     <div class="card">
       <h1>Absensi — Sync via Gist</h1>
-      <div class="muted">
-        Kredensial tidak ditanam di file. Diambil <i>runtime</i> dari Google Docs publish-to-web.
-      </div>
+      <div class="muted">Kredensial diambil otomatis dari Google Docs publish-to-web. Tidak ada token/Gist ID yang ditanam di file ini.</div>
 
       <div class="hr"></div>
 
       <div class="grid">
         <div>
           <label>Link Google Docs (publish-to-web)</label>
-          <input id="docUrl" type="url" value="https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
-          <div class="hint">
-            Dokumen berisi 2 baris: <b>Baris-1 = GIST_ID</b>, <b>Baris-2 = TOKEN</b>. URL otomatis pakai <code>?output=txt</code>.
-          </div>
+          <input id="docUrl" type="url" autocomplete="off" />
+          <div class="hint">Dokumen berisi 2 baris: <b>Baris-1 = GIST_ID</b>, <b>Baris-2 = TOKEN</b>. URL otomatis pakai <code>?output=txt</code>.</div>
         </div>
         <div>
           <div class="row">
@@ -103,13 +84,13 @@
       </div>
 
       <div class="btnbar">
-        <button id="btnFetchCreds" class="primary" type="button">1) Ambil Gist ID & Token dari Docs</button>
-        <button id="btnTestCreds" type="button">Tes Kredensial</button>
+        <button id="btnFetchCreds" class="primary">1) Ambil Gist ID & Token dari Docs</button>
+        <button id="btnTestCreds">Tes Kredensial</button>
         <span class="inline right muted">
           <label class="inline" style="gap:6px;">
             <input id="remember" type="checkbox"/> Remember locally
           </label>
-          <button id="btnClear" class="danger" type="button">Hapus yang tersimpan</button>
+          <button id="btnClear" class="danger">Hapus yang tersimpan</button>
           <span> | Status: <span id="status" class="warn">Idle</span></span>
         </span>
       </div>
@@ -139,7 +120,7 @@
       <div class="hr"></div>
 
       <label>Data JSON</label>
-      <textarea id="jsonArea" placeholder="[ ... ]"></textarea>
+      <textarea id="jsonArea" placeholder="{ ... }"></textarea>
 
       <div class="hint">
         • Setelah <b>Load</b>, kamu bisa copy JSON ke app atau langsung <b>Save</b> untuk update storage di Gist.  
@@ -152,46 +133,29 @@
 
   <script>
     // === Konstanta/Config ===
-    const ACCESS_PW = "inipassword12";
+    const PRESET_DOC_URL = "https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt"; // otomatis diisi & auto-fetch on load
 
     // === Util ===
     const $ = sel => document.querySelector(sel);
     const showToast = (msg) => { const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
       clearTimeout(window.__toastT); window.__toastT = setTimeout(()=> t.style.display='none', 2600); };
-    const setStatus = (msg, ok=false) => { const s = $('#status'); s.textContent = msg; s.style.color = ok ? '#8ee39c' : '#ffbd59'; };
+    const setStatus = (msg, ok=false) => { const s = $('#status'); s.textContent = msg; s.className = ok ? 'success' : 'warn'; };
 
-    // === Gate ===
-    function openApp() {
-      $('#gate').style.display='none';
-      $('#app').style.display='block';
-      // auto-fetch after open for convenience
-      doFetchCreds().catch(()=>{});
-    }
-    function tryOpenGate() {
-      const pw = $('#gatePw').value;
-      if (pw === ACCESS_PW) { openApp(); }
-      else { $('#gateMsg').textContent = 'Password salah.'; }
-    }
-    // Enter-to-login + click
-    document.addEventListener('DOMContentLoaded', () => {
-      $('#gateBtn').addEventListener('click', tryOpenGate);
-      $('#gatePw').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); tryOpenGate(); } });
-    });
+    function skeleton(on) { document.querySelectorAll('input,textarea,button,select').forEach(el => el.classList.toggle('skeleton', !!on)); }
 
     // === Google Docs -> creds ===
     async function fetchCredsFromDoc(url) {
       if (!url) throw new Error("URL Google Docs kosong");
-      if (!/\\?output=txt($|&)/.test(url)) url += (url.includes('?') ? '&' : '?') + 'output=txt';
+      if (!/\?output=txt($|&)/.test(url)) url += (url.includes('?') ? '&' : '?') + 'output=txt';
       const res = await fetch(url, { mode: 'cors' });
       if (!res.ok) throw new Error("Gagal mengambil dokumen (" + res.status + ")");
       const text = await res.text();
-      const lines = text.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);
+      const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
       if (lines.length >= 2 && /^[a-f0-9]{32}$/i.test(lines[0]) && /^gh[pous]_[A-Za-z0-9_]{20,}/.test(lines[1])) {
         return { gistId: lines[0], token: lines[1] };
       }
-      // fallback HTML scrape (kalau publish bukan txt)
-      const idMatch = text.match(/\\b[a-f0-9]{32}\\b/i);
-      const tkMatch = text.match(/\\bgh[pous]_[A-Za-z0-9_]{20,}\\b/);
+      const idMatch = text.match(/\b[a-f0-9]{32}\b/i);
+      const tkMatch = text.match(/\bgh[pous]_[A-Za-z0-9_]{20,}\b/);
       if (idMatch && tkMatch) return { gistId: idMatch[0], token: tkMatch[0] };
       throw new Error("Tidak menemukan Gist ID / Token di dokumen.");
     }
@@ -222,7 +186,7 @@
     async function saveJsonToGist({ gistId, filename, token, content }) {
       if (!token) throw new Error("Token wajib untuk menyimpan.");
       const url = `https://api.github.com/gists/${gistId}`;
-      const body = { files: {} }; body.files[filename] = { content };
+      const body = { files: { } }; body.files[filename] = { content };
       const res = await fetch(url, {
         method: "PATCH",
         headers: {
@@ -243,6 +207,7 @@
     async function doFetchCreds() {
       const url = $('#docUrl').value.trim();
       try {
+        skeleton(true);
         const { gistId, token } = await fetchCredsFromDoc(url);
         $('#gistId').value = gistId;
         $('#token').value  = token;
@@ -258,7 +223,7 @@
       } catch (e) {
         setStatus("Gagal ambil dari Docs", false);
         showToast(e.message);
-      }
+      } finally { skeleton(false); }
     }
 
     async function doTestCreds() {
@@ -272,15 +237,10 @@
       const gistId  = $('#gistId').value.trim();
       const token   = $('#token').value.trim();
       const fname   = $('#filename').value.trim();
-      try {
-        const txt = await loadJsonFromGist({ gistId, filename: fname, token });
-        $('#jsonArea').value = txt;
-        setStatus("JSON termuat dari Gist", true);
-        showToast("Muat JSON OK");
-      } catch (e) {
-        showToast(e.message);
-        setStatus("Gagal memuat JSON", false);
-      }
+      try { skeleton(true); const txt = await loadJsonFromGist({ gistId, filename: fname, token });
+            $('#jsonArea').value = txt; setStatus("JSON termuat dari Gist", true); showToast("Muat JSON OK"); }
+      catch (e) { showToast(e.message); setStatus("Gagal memuat JSON", false); }
+      finally { skeleton(false); }
     }
 
     async function doSave() {
@@ -289,14 +249,10 @@
       const fname   = $('#filename').value.trim();
       const txt     = $('#jsonArea').value;
       if (txt.trim()) { try { JSON.parse(txt); } catch { return showToast("JSON tidak valid — cek koma/kurung"); } }
-      try {
-        await saveJsonToGist({ gistId, filename: fname, token, content: txt });
-        setStatus("Tersimpan ke Gist", true);
-        showToast("Simpan JSON OK");
-      } catch (e) {
-        showToast(e.message);
-        setStatus("Gagal menyimpan JSON", false);
-      }
+      try { skeleton(true); await saveJsonToGist({ gistId, filename: fname, token, content: txt });
+            setStatus("Tersimpan ke Gist", true); showToast("Simpan JSON OK"); }
+      catch (e) { showToast(e.message); setStatus("Gagal menyimpan JSON", false); }
+      finally { skeleton(false); }
     }
 
     function doDownload() {
@@ -337,6 +293,10 @@
 
       // Ctrl/Cmd+S
       window.addEventListener('keydown', (e)=>{ if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); } });
+
+      // Auto-fill & auto-fetch
+      $('#docUrl').value = PRESET_DOC_URL;
+      doFetchCreds().catch(()=>{});
     });
   </script>
 </body>
