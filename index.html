@@ -1,9 +1,15 @@
-<!DOCTYPE html>
+# Create a new index.html that NEVER embeds a token or gist id in the source.
+# - No fallback constants
+# - No default Google Docs URL
+# - Optional query param ?doc=<urlencoded_google_docs_publish_url>
+# - Does NOT store token/gistId unless user checks "Remember locally"
+secure_html = r"""<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Absensi — Sync via Gist</title>
+  <title>Absensi — Sync via Gist (No Secrets Embedded)</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src https://api.github.com https://docs.google.com https://docs.gstatic.com; frame-ancestors 'none'; base-uri 'none'">
   <style>
     :root {
       --bg: #0b0f14; --card:#121821; --muted:#1a2330; --text:#e8eef6; --sub:#a9b7c6; --acc:#4da3ff; --danger:#ff5470; --ok:#2ecc71;
@@ -50,23 +56,26 @@
   <div class="wrap">
     <div class="card">
       <h1>Absensi — Sync via Gist</h1>
-      <div class="muted">Index ini memuat <b>loader Sync</b> yang otomatis mengambil <span class="kbd">Gist ID</span> &amp; <span class="kbd">Token</span> dari Google Docs publish-to-web.</div>
+      <div class="muted">
+        Tidak ada <b>Gist ID</b> atau <b>Token</b> yang ditanam di file ini. Semua kredensial diambil <i>runtime</i> dari Google Docs yang kamu publish.
+      </div>
 
       <div class="hr"></div>
 
       <div class="grid">
         <div>
-          <label>https://docs.google.com/document/u/1/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRfLj8SmVYJwjMxCi-clKmuIktBOwN8jlGTpaEI/pub?output=txt<span class="tag">2 baris: GIST_ID di baris 1, TOKEN di baris 2</span></label>
-          <!-- GANTI href di bawah dengan link publish dari screenshot kamu, pakai format ?output=txt agar bisa di-fetch sebagai teks -->
-          <input id="docUrl" type="url" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt"
-                 value="https://docs.google.com/document/d/e/2PACX-1vSw0DNyopCzYwRF9LuAnecyNE_sv0HJYplvaj38ZfRLj8SmVYJw.../pub?output=txt">
-          <div class="hint">Tips: di Google Docs, pilih <b>File → Publish to the web</b>, lalu ambil URL dan tambahkan <code>?output=txt</code>.</div>
+          <label>Link Google Docs (publish-to-web)</label>
+          <input id="docUrl" type="url" placeholder="https://docs.google.com/document/d/e/.../pub?output=txt" autocomplete="off" />
+          <div class="hint">
+            Dokumen harus berisi 2 baris: <b>Baris-1 = GIST_ID</b>, <b>Baris-2 = TOKEN</b>.  
+            Bisa juga kirim lewat query: <code>?doc=&lt;urlencoded_docs_url&gt;</code> agar otomatis terisi tanpa menanam URL di file.
+          </div>
         </div>
         <div>
           <div class="row">
             <div>
               <label>Filename di Gist (harus sama dengan yang dipakai app)</label>
-              <input id="filename" type="text" value="absensi-settings.json" />
+              <input id="filename" type="text" value="absensi-settings.json" autocomplete="off"/>
               <div class="hint">Default app: <b>absensi-settings.json</b>. Case-sensitive.</div>
             </div>
           </div>
@@ -76,7 +85,13 @@
       <div class="btnbar">
         <button id="btnFetchCreds" class="primary">1) Ambil Gist ID &amp; Token dari Docs</button>
         <button id="btnTestCreds">Tes Kredensial</button>
-        <span class="right muted">Status: <span id="status" class="warn">Belum mengambil kredensial</span></span>
+        <span class="inline right muted">
+          <label class="inline" style="gap:6px;">
+            <input id="remember" type="checkbox"/> Remember locally
+          </label>
+          <button id="btnClear" class="danger">Hapus yang tersimpan</button>
+          <span> | Status: <span id="status" class="warn">Idle</span></span>
+        </span>
       </div>
 
       <div class="hr"></div>
@@ -84,11 +99,11 @@
       <div class="grid">
         <div>
           <label>Gist ID</label>
-          <input id="gistId" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <input id="gistId" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
         </div>
         <div>
           <label>GitHub Token (scope: <span class="kbd">gist</span>)</label>
-          <input id="token" type="password" placeholder="ghp_xxx..." />
+          <input id="token" type="password" placeholder="ghp_xxx..." autocomplete="off" />
         </div>
       </div>
 
@@ -107,14 +122,8 @@
       <textarea id="jsonArea" placeholder="{ ... }"></textarea>
 
       <div class="hint">
-        • Kalau kamu sudah punya app absensi-nya, file ini bisa dijadikan “Sync Helper”.  
         • Setelah <b>Load</b>, kamu bisa copy JSON ke app atau langsung <b>Save</b> untuk update storage di Gist.  
         • Gunakan <span class="kbd">Ctrl/⌘+S</span> di sini untuk cepat menyimpan ke Gist.
-      </div>
-
-      <div class="hr"></div>
-      <div class="muted">
-        <b>Keamanan:</b> Token di dokumen publik berisiko. Minimal, jadikan Gist <b>secret</b> dan batasi masa aktif token.
       </div>
     </div>
   </div>
@@ -122,13 +131,9 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    // === Konfigurasi default (opsional) ===
-    // Kamu minta langsung dari screenshot; ini akan KUPAKAI JIKA fetch dari Docs gagal.
-    // ⚠️ PERHATIAN: Menanam token di file ini tidak aman. Hanya untuk darurat.
-
-
     // === Util kecil ===
     const $ = sel => document.querySelector(sel);
+    const qp = new URLSearchParams(location.search);
     const showToast = (msg) => {
       const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
       clearTimeout(window.__toastT); window.__toastT = setTimeout(()=> t.style.display='none', 2600);
@@ -140,30 +145,24 @@
     // === Ambil kredensial dari Google Docs publish-to-web ===
     async function fetchCredsFromDoc(url) {
       if (!url) throw new Error("URL Google Docs kosong");
-      // Kalau user lupa ?output=txt, tetap coba scrape isi HTML:
       const res = await fetch(url, { mode: 'cors' });
       if (!res.ok) throw new Error("Gagal mengambil dokumen (" + res.status + ")");
       const text = await res.text();
 
       // Coba pola plaintext: dua baris
-      const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      const lines = text.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean);
       let gistId = null, token = null;
 
-      // Pola 1: plaintext dua baris
       if (lines.length >= 2 && /^[a-f0-9]{32}$/i.test(lines[0]) && /^gh[pous]_[A-Za-z0-9_]{20,}/.test(lines[1])) {
         gistId = lines[0];
         token = lines[1];
         return { gistId, token };
       }
 
-      // Pola 2: HTML — ekstrak dengan regex
-      const idMatch = text.match(/\b[a-f0-9]{32}\b/i);
-      const tkMatch = text.match(/\bgh[pous]_[A-Za-z0-9_]{20,}\b/);
-      if (idMatch && tkMatch) {
-        gistId = idMatch[0];
-        token  = tkMatch[0];
-        return { gistId, token };
-      }
+      // Pola HTML — fallback (kalau publish bukan txt)
+      const idMatch = text.match(/\\b[a-f0-9]{32}\\b/i);
+      const tkMatch = text.match(/\\bgh[pous]_[A-Za-z0-9_]{20,}\\b/);
+      if (idMatch && tkMatch) return { gistId: idMatch[0], token: tkMatch[0] };
 
       throw new Error("Tidak menemukan Gist ID / Token di dokumen. Pastikan baris 1 = GIST_ID, baris 2 = TOKEN.");
     }
@@ -177,8 +176,7 @@
       const res = await fetch(url, { headers });
       if (res.status === 404) throw new Error("404 — Gist tidak ditemukan atau tidak bisa diakses.");
       if (!res.ok) throw new Error(`Gagal GET Gist (${res.status})`);
-      const data = await res.json();
-      return data;
+      return await res.json();
     }
 
     async function loadJsonFromGist({ gistId, filename, token }) {
@@ -203,11 +201,7 @@
           "Accept": "application/vnd.github+json",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          files: {
-            [filename]: { content }
-          }
-        })
+        body: JSON.stringify({ files: { [filename]: { content } } })
       });
       if (!res.ok) {
         const t = await res.text().catch(()=> "");
@@ -226,14 +220,15 @@
         $('#openGist').href = `https://gist.github.com/${gistId}`;
         setStatus("Kredensial diambil dari Docs", true);
         showToast("Berhasil ambil Gist ID & Token dari Docs");
-        localStorage.setItem('sync.gistId', gistId);
-        localStorage.setItem('sync.token', token);
+
+        if ($('#remember').checked) {
+          localStorage.setItem('sync.gistId', gistId);
+          localStorage.setItem('sync.token', token);
+          localStorage.setItem('sync.filename', $('#filename').value.trim());
+          localStorage.setItem('sync.docUrl', url);
+        }
       } catch (e) {
-        // fallback ke konstanta jika ada
-        $('#gistId').value = FALLBACK_GIST_ID;
-        $('#token').value  = FALLBACK_TOKEN;
-        $('#openGist').href = `https://gist.github.com/${FALLBACK_GIST_ID}`;
-        setStatus("Gagal ambil dari Docs — pakai fallback dari file", false);
+        setStatus("Gagal ambil dari Docs", false);
         showToast(e.message);
       }
     }
@@ -272,7 +267,6 @@
       const fname   = $('#filename').value.trim();
       const txt     = $('#jsonArea').value;
 
-      // Validasi JSON (beri toleransi kosong)
       if (txt.trim()) {
         try { JSON.parse(txt); }
         catch { return showToast("JSON tidak valid — cek koma/kurung"); }
@@ -305,6 +299,15 @@
       ev.target.value = "";
     }
 
+    function clearStored() {
+      localStorage.removeItem('sync.gistId');
+      localStorage.removeItem('sync.token');
+      localStorage.removeItem('sync.filename');
+      localStorage.removeItem('sync.docUrl');
+      showToast("Local storage dibersihkan");
+      setStatus("Cleared", false);
+    }
+
     // Shortcuts
     window.addEventListener('keydown', (e)=>{
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -319,18 +322,30 @@
     $('#btnSave').addEventListener('click', doSave);
     $('#btnDownload').addEventListener('click', doDownload);
     $('#fileInput').addEventListener('change', handleFile);
+    $('#btnClear').addEventListener('click', clearStored);
 
-    // Init awal: coba ambil dari Docs otomatis
-    (async function init(){
-      // Auto load URL dari input; kalau gagal, fallback ke konstanta
-      try { await doFetchCreds(); } catch {}
-      const gid = $('#gistId').value.trim() || FALLBACK_GIST_ID;
-      $('#openGist').href = `https://gist.github.com/${gid}`;
-      // Kalau sudah punya kredensial tersimpan, pakai itu
-      const lgid = localStorage.getItem('sync.gistId');
-      const ltk  = localStorage.getItem('sync.token');
-      if (lgid && ltk) { $('#gistId').value = lgid; $('#token').value = ltk; setStatus("Kredensial dari localStorage", true); }
+    // Init: isi docUrl dari query param ?doc= tanpa menyimpannya
+    (function init(){
+      const docParam = qp.get('doc');
+      if (docParam) $('#docUrl').value = docParam;
+      // Opsi: jika user sebelumnya centang "Remember", pulihkan
+      const savedId = localStorage.getItem('sync.gistId');
+      const savedTk = localStorage.getItem('sync.token');
+      const savedFn = localStorage.getItem('sync.filename');
+      const savedDu = localStorage.getItem('sync.docUrl');
+      if (savedId && savedTk) {
+        $('#remember').checked = true;
+        $('#gistId').value = savedId;
+        $('#token').value  = savedTk;
+        if (savedFn) $('#filename').value = savedFn;
+        if (savedDu) $('#docUrl').value = savedDu;
+        setStatus("Kredensial dari perangkat ini", true);
+      }
     })();
   </script>
 </body>
 </html>
+"""
+with open('/mnt/data/index_no_secrets.html', 'w', encoding='utf-8') as f:
+    f.write(secure_html)
+print("Saved /mnt/data/index_no_secrets.html")
